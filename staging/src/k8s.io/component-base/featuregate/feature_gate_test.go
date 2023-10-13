@@ -18,6 +18,8 @@ package featuregate
 
 import (
 	"fmt"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -27,12 +29,14 @@ import (
 	"k8s.io/component-base/metrics/legacyregistry"
 	featuremetrics "k8s.io/component-base/metrics/prometheus/feature"
 	"k8s.io/component-base/metrics/testutil"
+	"k8s.io/component-base/version"
 )
 
 func TestFeatureGateFlag(t *testing.T) {
 	// gates for testing
 	const testAlphaGate Feature = "TestAlpha"
 	const testBetaGate Feature = "TestBeta"
+	const testDeprecatedGate Feature = "TestDeprecated"
 
 	tests := []struct {
 		arg        string
@@ -42,10 +46,21 @@ func TestFeatureGateFlag(t *testing.T) {
 		{
 			arg: "",
 			expect: map[Feature]bool{
-				allAlphaGate:  false,
-				allBetaGate:   false,
-				testAlphaGate: false,
-				testBetaGate:  false,
+				allAlphaGate:       false,
+				allBetaGate:        false,
+				testAlphaGate:      false,
+				testBetaGate:       false,
+				testDeprecatedGate: false,
+			},
+		},
+		{
+			arg: "TestDeprecated=true",
+			expect: map[Feature]bool{
+				allAlphaGate:       false,
+				allBetaGate:        false,
+				testAlphaGate:      false,
+				testBetaGate:       false,
+				testDeprecatedGate: true,
 			},
 		},
 		{
@@ -209,10 +224,11 @@ func TestFeatureGateFlag(t *testing.T) {
 	for i, test := range tests {
 		t.Run(test.arg, func(t *testing.T) {
 			fs := pflag.NewFlagSet("testfeaturegateflag", pflag.ContinueOnError)
-			f := NewFeatureGate()
+			f := NewFeatureGateForTest("1.29")
 			f.Add(map[Feature]FeatureSpec{
-				testAlphaGate: {Default: false, PreRelease: Alpha},
-				testBetaGate:  {Default: false, PreRelease: Beta},
+				testAlphaGate:      {Default: false, PreRelease: Alpha},
+				testBetaGate:       {Default: false, PreRelease: Beta},
+				testDeprecatedGate: {Default: false, PreRelease: Deprecated},
 			})
 			f.AddFlag(fs)
 
@@ -238,7 +254,7 @@ func TestFeatureGateOverride(t *testing.T) {
 	const testBetaGate Feature = "TestBeta"
 
 	// Don't parse the flag, assert defaults are used.
-	var f *featureGate = NewFeatureGate()
+	var f *featureGate = NewFeatureGateForTest("1.29")
 	f.Add(map[Feature]FeatureSpec{
 		testAlphaGate: {Default: false, PreRelease: Alpha},
 		testBetaGate:  {Default: false, PreRelease: Beta},
@@ -267,7 +283,7 @@ func TestFeatureGateFlagDefaults(t *testing.T) {
 	const testBetaGate Feature = "TestBeta"
 
 	// Don't parse the flag, assert defaults are used.
-	var f *featureGate = NewFeatureGate()
+	var f *featureGate = NewFeatureGateForTest("1.29")
 	f.Add(map[Feature]FeatureSpec{
 		testAlphaGate: {Default: false, PreRelease: Alpha},
 		testBetaGate:  {Default: true, PreRelease: Beta},
@@ -291,7 +307,7 @@ func TestFeatureGateKnownFeatures(t *testing.T) {
 	)
 
 	// Don't parse the flag, assert defaults are used.
-	var f *featureGate = NewFeatureGate()
+	var f *featureGate = NewFeatureGateForTest("1.29")
 	f.Add(map[Feature]FeatureSpec{
 		testAlphaGate:      {Default: false, PreRelease: Alpha},
 		testBetaGate:       {Default: true, PreRelease: Beta},
@@ -398,7 +414,7 @@ func TestFeatureGateSetFromMap(t *testing.T) {
 	}
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("SetFromMap %s", test.name), func(t *testing.T) {
-			f := NewFeatureGate()
+			f := NewFeatureGateForTest("1.29")
 			f.Add(map[Feature]FeatureSpec{
 				testAlphaGate:       {Default: false, PreRelease: Alpha},
 				testBetaGate:        {Default: false, PreRelease: Beta},
@@ -443,7 +459,7 @@ func TestFeatureGateMetrics(t *testing.T) {
 		kubernetes_feature_enabled{name="TestBetaDisabled",stage="ALPHA"} 0
 `
 
-	f := NewFeatureGate()
+	f := NewFeatureGateForTest("1.29")
 	fMap := map[Feature]FeatureSpec{
 		testAlphaGate:    {Default: false, PreRelease: Alpha},
 		testAlphaEnabled: {Default: false, PreRelease: Alpha},
@@ -498,12 +514,515 @@ func TestFeatureGateString(t *testing.T) {
 	}
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("SetFromMap %s", test.expect), func(t *testing.T) {
-			f := NewFeatureGate()
+			f := NewFeatureGateForTest("1.29")
 			f.Add(featuremap)
 			f.SetFromMap(test.setmap)
 			result := f.String()
 			if result != test.expect {
 				t.Errorf("%d: SetFromMap(%#v) Expected %s, Got %s", i, test.setmap, test.expect, result)
+			}
+		})
+	}
+}
+
+func TestVersionedFeatureGateFlag(t *testing.T) {
+	// gates for testing
+	const testGAGate Feature = "TestGA"
+	const testAlphaGate Feature = "TestAlpha"
+	const testBetaGate Feature = "TestBeta"
+	const testAlphaGateNoVersion Feature = "TestAlphaNoVersion"
+	const testBetaGateNoVersion Feature = "TestBetaNoVersion"
+
+	tests := []struct {
+		arg        string
+		expect     map[Feature]bool
+		parseError string
+	}{
+		{
+			arg: "",
+			expect: map[Feature]bool{
+				testGAGate:             false,
+				allAlphaGate:           false,
+				allBetaGate:            false,
+				testAlphaGate:          false,
+				testBetaGate:           false,
+				testAlphaGateNoVersion: false,
+				testBetaGateNoVersion:  false,
+			},
+		},
+		{
+			arg: "fooBarBaz=true",
+			expect: map[Feature]bool{
+				allAlphaGate:           false,
+				allBetaGate:            false,
+				testGAGate:             false,
+				testAlphaGate:          false,
+				testBetaGate:           false,
+				testAlphaGateNoVersion: false,
+				testBetaGateNoVersion:  false,
+			},
+			parseError: "unrecognized feature gate: fooBarBaz",
+		},
+		{
+			arg: "AllAlpha=false",
+			expect: map[Feature]bool{
+				allAlphaGate:           false,
+				allBetaGate:            false,
+				testGAGate:             false,
+				testAlphaGate:          false,
+				testBetaGate:           false,
+				testAlphaGateNoVersion: false,
+				testBetaGateNoVersion:  false,
+			},
+		},
+		{
+			arg: "AllAlpha=true",
+			expect: map[Feature]bool{
+				allAlphaGate:           true,
+				allBetaGate:            false,
+				testAlphaGate:          false,
+				testGAGate:             false,
+				testBetaGate:           true,
+				testAlphaGateNoVersion: false,
+				testBetaGateNoVersion:  false,
+			},
+		},
+		{
+			arg: "AllAlpha=banana",
+			expect: map[Feature]bool{
+				allAlphaGate:           false,
+				allBetaGate:            false,
+				testGAGate:             false,
+				testAlphaGate:          false,
+				testBetaGate:           false,
+				testAlphaGateNoVersion: false,
+				testBetaGateNoVersion:  false,
+			},
+			parseError: "invalid value of AllAlpha",
+		},
+		{
+			arg: "AllAlpha=false,TestAlpha=true,TestAlphaNoVersion=true",
+			expect: map[Feature]bool{
+				allAlphaGate:           false,
+				allBetaGate:            false,
+				testGAGate:             false,
+				testAlphaGate:          true,
+				testBetaGate:           false,
+				testAlphaGateNoVersion: true,
+				testBetaGateNoVersion:  false,
+			},
+		},
+		{
+			arg: "TestAlpha=true,TestAlphaNoVersion=true,AllAlpha=false",
+			expect: map[Feature]bool{
+				allAlphaGate:           false,
+				allBetaGate:            false,
+				testGAGate:             false,
+				testAlphaGate:          true,
+				testBetaGate:           false,
+				testAlphaGateNoVersion: true,
+				testBetaGateNoVersion:  false,
+			},
+		},
+		{
+			arg: "AllAlpha=true,TestAlpha=false,TestAlphaNoVersion=false",
+			expect: map[Feature]bool{
+				allAlphaGate:           true,
+				allBetaGate:            false,
+				testGAGate:             false,
+				testAlphaGate:          false,
+				testBetaGate:           true,
+				testAlphaGateNoVersion: false,
+				testBetaGateNoVersion:  false,
+			},
+		},
+		{
+			arg: "TestAlpha=false,TestAlphaNoVersion=false,AllAlpha=true",
+			expect: map[Feature]bool{
+				allAlphaGate:           true,
+				allBetaGate:            false,
+				testGAGate:             false,
+				testAlphaGate:          false,
+				testBetaGate:           true,
+				testAlphaGateNoVersion: false,
+				testBetaGateNoVersion:  false,
+			},
+		},
+		{
+			arg: "TestBeta=true,TestBetaNoVersion=true,TestGA=true,AllAlpha=false",
+			expect: map[Feature]bool{
+				allAlphaGate:           false,
+				allBetaGate:            false,
+				testGAGate:             true,
+				testAlphaGate:          false,
+				testBetaGate:           true,
+				testAlphaGateNoVersion: false,
+				testBetaGateNoVersion:  true,
+			},
+		},
+
+		{
+			arg: "AllBeta=false",
+			expect: map[Feature]bool{
+				allAlphaGate:           false,
+				allBetaGate:            false,
+				testGAGate:             false,
+				testAlphaGate:          false,
+				testBetaGate:           false,
+				testAlphaGateNoVersion: false,
+				testBetaGateNoVersion:  false,
+			},
+		},
+		{
+			arg: "AllBeta=true",
+			expect: map[Feature]bool{
+				allAlphaGate:           false,
+				allBetaGate:            true,
+				testGAGate:             true,
+				testAlphaGate:          false,
+				testBetaGate:           false,
+				testAlphaGateNoVersion: false,
+				testBetaGateNoVersion:  false,
+			},
+		},
+		{
+			arg: "AllBeta=banana",
+			expect: map[Feature]bool{
+				allAlphaGate:           false,
+				allBetaGate:            false,
+				testGAGate:             false,
+				testAlphaGate:          false,
+				testBetaGate:           false,
+				testAlphaGateNoVersion: false,
+				testBetaGateNoVersion:  false,
+			},
+			parseError: "invalid value of AllBeta",
+		},
+		{
+			arg: "AllBeta=false,TestBeta=true,TestBetaNoVersion=true,TestGA=true",
+			expect: map[Feature]bool{
+				allAlphaGate:           false,
+				allBetaGate:            false,
+				testGAGate:             true,
+				testAlphaGate:          false,
+				testBetaGate:           true,
+				testAlphaGateNoVersion: false,
+				testBetaGateNoVersion:  true,
+			},
+		},
+		{
+			arg: "TestBeta=true,TestBetaNoVersion=true,AllBeta=false",
+			expect: map[Feature]bool{
+				allAlphaGate:           false,
+				allBetaGate:            false,
+				testGAGate:             false,
+				testAlphaGate:          false,
+				testBetaGate:           true,
+				testAlphaGateNoVersion: false,
+				testBetaGateNoVersion:  true,
+			},
+		},
+		{
+			arg: "AllBeta=true,TestBetaNoVersion=false,TestBeta=false,TestGA=false",
+			expect: map[Feature]bool{
+				allAlphaGate:           false,
+				allBetaGate:            true,
+				testGAGate:             false,
+				testAlphaGate:          false,
+				testBetaGate:           false,
+				testAlphaGateNoVersion: false,
+				testBetaGateNoVersion:  false,
+			},
+		},
+		{
+			arg: "TestBeta=false,TestBetaNoVersion=false,AllBeta=true",
+			expect: map[Feature]bool{
+				allAlphaGate:           false,
+				allBetaGate:            true,
+				testGAGate:             true,
+				testAlphaGate:          false,
+				testBetaGate:           false,
+				testAlphaGateNoVersion: false,
+				testBetaGateNoVersion:  false,
+			},
+		},
+		{
+			arg: "TestAlpha=true,AllBeta=false",
+			expect: map[Feature]bool{
+				allAlphaGate:           false,
+				allBetaGate:            false,
+				testGAGate:             false,
+				testAlphaGate:          true,
+				testBetaGate:           false,
+				testAlphaGateNoVersion: false,
+				testBetaGateNoVersion:  false,
+			},
+		},
+	}
+	for i, test := range tests {
+		t.Run(test.arg, func(t *testing.T) {
+			fs := pflag.NewFlagSet("testfeaturegateflag", pflag.ContinueOnError)
+			f := NewFeatureGateForTest("1.29")
+			f.SetCompatibilityVersion("1.28")
+
+			f.AddVersioned(map[Feature]VersionedSpecs{
+				testGAGate: VersionedSpecs{
+					{Version: version.MustParseVersion("1.29"), Default: true, PreRelease: GA},
+					{Version: version.MustParseVersion("1.28"), Default: false, PreRelease: Beta},
+					{Version: version.MustParseVersion("1.27"), Default: false, PreRelease: Alpha},
+				},
+				testAlphaGate: VersionedSpecs{
+					{Version: version.MustParseVersion("1.29"), Default: false, PreRelease: Alpha},
+				},
+				testBetaGate: VersionedSpecs{
+					{Version: version.MustParseVersion("1.29"), Default: false, PreRelease: Beta},
+					{Version: version.MustParseVersion("1.28"), Default: false, PreRelease: Alpha},
+				},
+			})
+			f.Add(map[Feature]FeatureSpec{
+				testAlphaGateNoVersion: {Default: false, PreRelease: Alpha},
+				testBetaGateNoVersion:  {Default: false, PreRelease: Beta},
+			})
+			f.AddFlag(fs)
+
+			err := fs.Parse([]string{fmt.Sprintf("--%s=%s", flagName, test.arg)})
+			if test.parseError != "" {
+				if !strings.Contains(err.Error(), test.parseError) {
+					t.Errorf("%d: Parse() Expected %v, Got %v", i, test.parseError, err)
+				}
+			} else if err != nil {
+				t.Errorf("%d: Parse() Expected nil, Got %v", i, err)
+			}
+			for k, v := range test.expect {
+				if actual := f.enabled.Load().(map[Feature]bool)[k]; actual != v {
+					t.Errorf("%d: expected %s=%v, Got %v", i, k, v, actual)
+				}
+			}
+		})
+	}
+}
+
+func TestVersionedFeatureGateOverride(t *testing.T) {
+	const testAlphaGate Feature = "TestAlpha"
+	const testBetaGate Feature = "TestBeta"
+
+	// Don't parse the flag, assert defaults are used.
+	var f *featureGate = NewFeatureGateForTest("1.29")
+	f.SetCompatibilityVersion("1.28")
+	f.AddVersioned(map[Feature]VersionedSpecs{
+		testAlphaGate: VersionedSpecs{
+			{Version: version.MustParseVersion("1.29"), Default: false, PreRelease: Alpha},
+		},
+		testBetaGate: VersionedSpecs{
+			{Version: version.MustParseVersion("1.29"), Default: false, PreRelease: Beta},
+			{Version: version.MustParseVersion("1.28"), Default: false, PreRelease: Alpha},
+		},
+	})
+
+	f.Set("TestAlpha=true,TestBeta=true")
+	if f.Enabled(testAlphaGate) != true {
+		t.Errorf("Expected true")
+	}
+	if f.Enabled(testBetaGate) != true {
+		t.Errorf("Expected true")
+	}
+
+	f.Set("TestAlpha=false")
+	if f.Enabled(testAlphaGate) != false {
+		t.Errorf("Expected false")
+	}
+	if f.Enabled(testBetaGate) != true {
+		t.Errorf("Expected true")
+	}
+}
+
+func TestVersionedFeatureGateFlagDefaults(t *testing.T) {
+	// gates for testing
+	const testGAGate Feature = "TestGA"
+	const testAlphaGate Feature = "TestAlpha"
+	const testBetaGate Feature = "TestBeta"
+
+	// Don't parse the flag, assert defaults are used.
+	var f *featureGate = NewFeatureGateForTest("1.29")
+	f.SetCompatibilityVersion("1.28")
+
+	f.AddVersioned(map[Feature]VersionedSpecs{
+		testGAGate: VersionedSpecs{
+			{Version: version.MustParseVersion("1.29"), Default: true, PreRelease: GA},
+			{Version: version.MustParseVersion("1.27"), Default: true, PreRelease: Beta},
+			{Version: version.MustParseVersion("1.25"), Default: true, PreRelease: Alpha},
+		},
+		testAlphaGate: VersionedSpecs{
+			{Version: version.MustParseVersion("1.29"), Default: false, PreRelease: Alpha},
+		},
+		testBetaGate: VersionedSpecs{
+			{Version: version.MustParseVersion("1.29"), Default: true, PreRelease: Beta},
+			{Version: version.MustParseVersion("1.28"), Default: false, PreRelease: Beta},
+			{Version: version.MustParseVersion("1.26"), Default: false, PreRelease: Alpha},
+		},
+	})
+
+	if f.Enabled(testAlphaGate) != false {
+		t.Errorf("Expected false")
+	}
+	if pr, v, _ := f.StabilityLevel(testAlphaGate); pr != PreAlpha || v != "0.0" {
+		t.Errorf("Expected (PreAlpha, 0.0)")
+	}
+	if f.Enabled(testBetaGate) != false {
+		t.Errorf("Expected false")
+	}
+	if pr, v, _ := f.StabilityLevel(testBetaGate); pr != Beta || v != "1.28" {
+		t.Errorf("Expected (Beta, 1.28)")
+	}
+	if f.Enabled(testGAGate) != true {
+		t.Errorf("Expected true")
+	}
+	if pr, v, _ := f.StabilityLevel(testGAGate); pr != Beta || v != "1.27" {
+		t.Errorf("Expected (Beta, 1.27)")
+	}
+	if _, _, err := f.StabilityLevel("NonExist"); err == nil {
+		t.Errorf("Expected Error")
+	}
+}
+
+func TestVersionedFeatureGateKnownFeatures(t *testing.T) {
+	// gates for testing
+	const (
+		testAlphaGate               Feature = "TestAlpha"
+		testBetaGate                Feature = "TestBeta"
+		testGAGate                  Feature = "TestGA"
+		testDeprecatedGate          Feature = "TestDeprecated"
+		testGAGateNoVersion         Feature = "TestGANoVersion"
+		testAlphaGateNoVersion      Feature = "TestAlphaNoVersion"
+		testBetaGateNoVersion       Feature = "TestBetaNoVersion"
+		testDeprecatedGateNoVersion Feature = "TestDeprecatedNoVersion"
+	)
+
+	// Don't parse the flag, assert defaults are used.
+	var f *featureGate = NewFeatureGateForTest("1.29")
+	f.SetCompatibilityVersion("1.28")
+	f.AddVersioned(map[Feature]VersionedSpecs{
+		testGAGate: VersionedSpecs{
+			{Version: version.MustParseVersion("1.27"), Default: false, PreRelease: Beta},
+			{Version: version.MustParseVersion("1.28"), Default: true, PreRelease: GA},
+		},
+		testAlphaGate: VersionedSpecs{
+			{Version: version.MustParseVersion("1.28"), Default: false, PreRelease: Alpha},
+		},
+		testBetaGate: VersionedSpecs{
+			{Version: version.MustParseVersion("1.28"), Default: false, PreRelease: Beta},
+		},
+		testDeprecatedGate: VersionedSpecs{
+			{Version: version.MustParseVersion("1.28"), Default: true, PreRelease: Deprecated},
+			{Version: version.MustParseVersion("1.26"), Default: false, PreRelease: Alpha},
+		},
+	})
+	f.Add(map[Feature]FeatureSpec{
+		testAlphaGateNoVersion:      {Default: false, PreRelease: Alpha},
+		testBetaGateNoVersion:       {Default: false, PreRelease: Beta},
+		testGAGateNoVersion:         {Default: false, PreRelease: GA},
+		testDeprecatedGateNoVersion: {Default: false, PreRelease: Deprecated},
+	})
+
+	known := strings.Join(f.KnownFeatures(), " ")
+
+	assert.Contains(t, known, testAlphaGate)
+	assert.Contains(t, known, testBetaGate)
+	assert.NotContains(t, known, testGAGate)
+	assert.NotContains(t, known, testDeprecatedGate)
+	assert.NotContains(t, known, testAlphaGateNoVersion)
+	assert.NotContains(t, known, testBetaGateNoVersion)
+	assert.NotContains(t, known, testGAGateNoVersion)
+	assert.NotContains(t, known, testDeprecatedGateNoVersion)
+}
+
+func TestVersionedFeatureGateMetrics(t *testing.T) {
+	// gates for testing
+	featuremetrics.ResetFeatureInfoMetric()
+	const testAlphaGate Feature = "TestAlpha"
+	const testBetaGate Feature = "TestBeta"
+	const testAlphaEnabled Feature = "TestAlphaEnabled"
+	const testBetaDisabled Feature = "TestBetaDisabled"
+	testedMetrics := []string{"kubernetes_feature_enabled"}
+	expectedOutput := `
+		# HELP kubernetes_feature_enabled [BETA] This metric records the data about the stage and enablement of a k8s feature.
+        # TYPE kubernetes_feature_enabled gauge
+        kubernetes_feature_enabled{name="TestAlpha",stage="ALPHA"} 0
+        kubernetes_feature_enabled{name="TestBeta",stage="BETA"} 1
+		kubernetes_feature_enabled{name="TestAlphaEnabled",stage="ALPHA"} 1
+        kubernetes_feature_enabled{name="AllAlpha",stage="ALPHA"} 0
+        kubernetes_feature_enabled{name="AllBeta",stage="BETA"} 0
+		kubernetes_feature_enabled{name="TestBetaDisabled",stage="BETA"} 0
+`
+
+	f := NewFeatureGateForTest("1.29")
+	f.SetCompatibilityVersion("1.28")
+	f.AddVersioned(map[Feature]VersionedSpecs{
+		testAlphaGate: VersionedSpecs{
+			{Version: version.MustParseVersion("1.28"), Default: false, PreRelease: Alpha},
+			{Version: version.MustParseVersion("1.29"), Default: true, PreRelease: Beta},
+		},
+		testAlphaEnabled: VersionedSpecs{
+			{Version: version.MustParseVersion("1.28"), Default: false, PreRelease: Alpha},
+			{Version: version.MustParseVersion("1.29"), Default: true, PreRelease: Beta},
+		},
+		testBetaGate: VersionedSpecs{
+			{Version: version.MustParseVersion("1.28"), Default: true, PreRelease: Beta},
+			{Version: version.MustParseVersion("1.27"), Default: false, PreRelease: Alpha},
+		},
+		testBetaDisabled: VersionedSpecs{
+			{Version: version.MustParseVersion("1.28"), Default: true, PreRelease: Beta},
+			{Version: version.MustParseVersion("1.27"), Default: false, PreRelease: Alpha},
+		},
+	})
+
+	f.SetFromMap(map[string]bool{"TestAlphaEnabled": true, "TestBetaDisabled": false})
+	f.AddMetrics()
+	if err := testutil.GatherAndCompare(legacyregistry.DefaultGatherer, strings.NewReader(expectedOutput), testedMetrics...); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGetCurrentVersion(t *testing.T) {
+	specs := VersionedSpecs{{Version: version.MustParseVersion("1.29"), Default: true, PreRelease: GA},
+		{Version: version.MustParseVersion("1.28"), Default: false, PreRelease: Beta},
+		{Version: version.MustParseVersion("1.25"), Default: false, PreRelease: Alpha},
+	}
+	sort.Sort(specs)
+	tests := []struct {
+		cVersion string
+		expect   FeatureSpec
+	}{
+		{
+			cVersion: "1.30",
+			expect:   FeatureSpec{Version: version.MustParseVersion("1.29"), Default: true, PreRelease: GA},
+		},
+		{
+			cVersion: "1.29",
+			expect:   FeatureSpec{Version: version.MustParseVersion("1.29"), Default: true, PreRelease: GA},
+		},
+		{
+			cVersion: "1.28",
+			expect:   FeatureSpec{Version: version.MustParseVersion("1.28"), Default: false, PreRelease: Beta},
+		},
+		{
+			cVersion: "1.27",
+			expect:   FeatureSpec{Version: version.MustParseVersion("1.25"), Default: false, PreRelease: Alpha},
+		},
+		{
+			cVersion: "1.25",
+			expect:   FeatureSpec{Version: version.MustParseVersion("1.25"), Default: false, PreRelease: Alpha},
+		},
+		{
+			cVersion: "1.24",
+			expect:   FeatureSpec{Default: false, PreRelease: PreAlpha},
+		},
+	}
+	for i, test := range tests {
+		t.Run(fmt.Sprintf("getCurrentVersion for compatibilityVersion %s", test.cVersion), func(t *testing.T) {
+			result := getCurrentVersion(specs, version.MustParseVersion(test.cVersion))
+			if !reflect.DeepEqual(result, test.expect) {
+				t.Errorf("%d: getCurrentVersion(, %s) Expected %v, Got %v", i, test.cVersion, test.expect, result)
 			}
 		})
 	}

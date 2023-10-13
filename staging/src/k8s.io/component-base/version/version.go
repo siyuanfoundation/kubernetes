@@ -17,9 +17,12 @@ limitations under the License.
 package version
 
 import (
+	"errors"
 	"fmt"
 	"runtime"
+	"strings"
 
+	"github.com/blang/semver/v4"
 	apimachineryversion "k8s.io/apimachinery/pkg/version"
 )
 
@@ -39,4 +42,22 @@ func Get() apimachineryversion.Info {
 		Compiler:     runtime.Compiler,
 		Platform:     fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
 	}
+}
+
+func ParseVersion(ver string) (semver.Version, error) {
+	verSplit := strings.Split(ver, ".")
+	if len(verSplit) < 2 {
+		return semver.Version{}, errors.New("version string must contain major and minor: " + ver)
+	}
+	return semver.ParseTolerant(fmt.Sprintf("%s.%s", verSplit[0], verSplit[1]))
+}
+
+// MustParseVersion parses a version string to semver.Version.
+// The ver string must contain the major and minor version numbers.
+func MustParseVersion(ver string) semver.Version {
+	parsedVer, err := ParseVersion(ver)
+	if err != nil {
+		panic(err)
+	}
+	return parsedVer
 }
