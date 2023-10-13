@@ -23,7 +23,7 @@ import (
 )
 
 func TestSpecialGates(t *gotest.T) {
-	gate := featuregate.NewFeatureGate()
+	gate := featuregate.NewFeatureGateForTest("1.29")
 	gate.Add(map[featuregate.Feature]featuregate.FeatureSpec{
 		"alpha_default_on":         {PreRelease: featuregate.Alpha, Default: true},
 		"alpha_default_on_set_off": {PreRelease: featuregate.Alpha, Default: true},
