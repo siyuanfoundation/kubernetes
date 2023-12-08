@@ -57,6 +57,10 @@ type ObjectTestExternal struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen=true
+// +k8s:prerelease-lifecycle-gen:introduced=1.1
+// +k8s:prerelease-lifecycle-gen:deprecated=1.8
+// +k8s:prerelease-lifecycle-gen:removed=1.16
 type InternalSimple struct {
 	runtime.TypeMeta `json:",inline"`
 	TestString       string `json:"testString"`

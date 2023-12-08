@@ -20,7 +20,9 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"sort"
 
+	"github.com/blang/semver/v4"
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/errors"
@@ -279,4 +281,46 @@ func (e *encoderWithAllocator) Encode(obj Object, w io.Writer) error {
 // Identifier returns identifier of this encoder.
 func (e *encoderWithAllocator) Identifier() Identifier {
 	return e.encoder.Identifier()
+}
+
+func GetLifecycleSpecs(obj Object) schema.LifecycleSpecs {
+	var lifecycles schema.LifecycleSpecs
+	introduced, isIntroduced := obj.(apiLifecycleIntroduced)
+	if isIntroduced {
+		major, minor := introduced.APILifecycleIntroduced()
+		lifecycles = append(lifecycles, schema.LifecycleSpec{
+			Default: true, PreRelease: schema.Introduced,
+			Version: semver.Version{Major: uint64(major), Minor: uint64(minor)},
+		})
+	}
+	deprecated, isDeprecated := obj.(apiLifecycleDeprecated)
+	if isDeprecated {
+		major, minor := deprecated.APILifecycleDeprecated()
+		lifecycles = append(lifecycles, schema.LifecycleSpec{
+			Default: true, PreRelease: schema.Deprecated,
+			Version: semver.Version{Major: uint64(major), Minor: uint64(minor)},
+		})
+	}
+	removed, isRemoved := obj.(apiLifecycleRemoved)
+	if isRemoved {
+		major, minor := removed.APILifecycleRemoved()
+		lifecycles = append(lifecycles, schema.LifecycleSpec{
+			Default: false, PreRelease: schema.Removed,
+			Version: semver.Version{Major: uint64(major), Minor: uint64(minor)},
+		})
+	}
+	sort.Sort(lifecycles)
+	return lifecycles
+}
+
+type apiLifecycleIntroduced interface {
+	APILifecycleIntroduced() (major, minor int)
+}
+
+type apiLifecycleDeprecated interface {
+	APILifecycleDeprecated() (major, minor int)
+}
+
+type apiLifecycleRemoved interface {
+	APILifecycleRemoved() (major, minor int)
 }

@@ -43,6 +43,14 @@ var (
 
 // Adds the list of known types to the given scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
+	// resourceLifecycleSpecs := make(map[string]schema.LifecycleSpecs)
+	// resourceLifecycleSpecs["deployments"] = runtime.GetLifecycleSpecs(&Deployment{})
+	// resourceLifecycleSpecs["daemonsets"] = runtime.GetLifecycleSpecs(&DaemonSet{})
+	// resourceLifecycleSpecs["replicasets"] = runtime.GetLifecycleSpecs(&ReplicaSet{})
+	// resourceLifecycleSpecs["ingresses"] = runtime.GetLifecycleSpecs(&Ingress{})
+	// resourceLifecycleSpecs["networkpolicies"] = runtime.GetLifecycleSpecs(&NetworkPolicy{})
+	// SchemeGroupVersion.ResourceLifecycleSpecs = resourceLifecycleSpecs
+
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&Deployment{},
 		&DeploymentList{},

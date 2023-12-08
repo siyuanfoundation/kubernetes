@@ -17,9 +17,11 @@ limitations under the License.
 package options
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/blang/semver/v4"
 	"github.com/spf13/pflag"
 
 	"k8s.io/apiserver/pkg/server"
@@ -31,7 +33,8 @@ import (
 // APIEnablementOptions contains the options for which resources to turn on and off.
 // Given small aggregated API servers, this option isn't required for "normal" API servers
 type APIEnablementOptions struct {
-	RuntimeConfig cliflag.ConfigurationMap
+	RuntimeConfig        cliflag.ConfigurationMap
+	compatibilityVersion semver.Version
 }
 
 func NewAPIEnablementOptions() *APIEnablementOptions {
@@ -94,10 +97,25 @@ func (s *APIEnablementOptions) ApplyTo(c *server.Config, defaultResourceConfig *
 		return nil
 	}
 
-	mergedResourceConfig, err := resourceconfig.MergeAPIResourceConfigs(defaultResourceConfig, s.RuntimeConfig, registry)
+	mergedResourceConfig, err := resourceconfig.MergeAPIResourceConfigs(defaultResourceConfig, s.RuntimeConfig, registry, s.compatibilityVersion)
 	c.MergedResourceConfig = mergedResourceConfig
 
 	return err
+}
+
+func (s *APIEnablementOptions) SetCompatibilityVersion(v string) {
+	s.compatibilityVersion = mustParseVersion(v)
+}
+
+func mustParseVersion(ver string) semver.Version {
+	if len(strings.Split(ver, ".")) != 2 {
+		panic(errors.New("version string must only contain major and minor"))
+	}
+	compatibilityVersion, err := semver.ParseTolerant(ver)
+	if err != nil {
+		panic(err)
+	}
+	return compatibilityVersion
 }
 
 func unknownGroups(groups []string, registry GroupRegistry) []string {

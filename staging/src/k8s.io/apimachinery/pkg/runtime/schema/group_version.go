@@ -19,6 +19,8 @@ package schema
 import (
 	"fmt"
 	"strings"
+
+	"github.com/blang/semver/v4"
 )
 
 // ParseResourceArg takes the common style of string which may be either `resource.group.com` or `resource.version.group.com`
@@ -56,6 +58,8 @@ func ParseKindArg(arg string) (*GroupVersionKind, GroupKind) {
 type GroupResource struct {
 	Group    string
 	Resource string
+	// LifecycleSpecs is used to determine if the resource should be enabled for a specific binary compatibility version.
+	LifecycleSpecs
 }
 
 func (gr GroupResource) WithVersion(version string) GroupVersionResource {
@@ -97,6 +101,8 @@ type GroupVersionResource struct {
 	Group    string
 	Version  string
 	Resource string
+	// LifecycleSpecs is used to determine if the resource should be enabled for a specific binary compatibility version.
+	LifecycleSpecs
 }
 
 func (gvr GroupVersionResource) Empty() bool {
@@ -104,7 +110,7 @@ func (gvr GroupVersionResource) Empty() bool {
 }
 
 func (gvr GroupVersionResource) GroupResource() GroupResource {
-	return GroupResource{Group: gvr.Group, Resource: gvr.Resource}
+	return GroupResource{Group: gvr.Group, Resource: gvr.Resource, LifecycleSpecs: gvr.LifecycleSpecs}
 }
 
 func (gvr GroupVersionResource) GroupVersion() GroupVersion {
@@ -166,6 +172,8 @@ func (gvk GroupVersionKind) String() string {
 type GroupVersion struct {
 	Group   string
 	Version string
+	// ResourceLifecycleSpecs stores the LifecycleSpecs for different resources.
+	ResourceLifecycleSpecs map[string]LifecycleSpecs
 }
 
 // Empty returns true if group and version are empty
@@ -217,10 +225,10 @@ func ParseGroupVersion(gv string) (GroupVersion, error) {
 
 	switch strings.Count(gv, "/") {
 	case 0:
-		return GroupVersion{"", gv}, nil
+		return GroupVersion{Group: "", Version: gv}, nil
 	case 1:
 		i := strings.Index(gv, "/")
-		return GroupVersion{gv[:i], gv[i+1:]}, nil
+		return GroupVersion{Group: gv[:i], Version: gv[i+1:]}, nil
 	default:
 		return GroupVersion{}, fmt.Errorf("unexpected GroupVersion string: %v", gv)
 	}
@@ -233,6 +241,9 @@ func (gv GroupVersion) WithKind(kind string) GroupVersionKind {
 
 // WithResource creates a GroupVersionResource based on the method receiver's GroupVersion and the passed Resource.
 func (gv GroupVersion) WithResource(resource string) GroupVersionResource {
+	if lifecycleSpecs, ok := gv.ResourceLifecycleSpecs[resource]; ok {
+		return GroupVersionResource{Group: gv.Group, Version: gv.Version, Resource: resource, LifecycleSpecs: lifecycleSpecs}
+	}
 	return GroupVersionResource{Group: gv.Group, Version: gv.Version, Resource: resource}
 }
 
@@ -303,3 +314,27 @@ func FromAPIVersionAndKind(apiVersion, kind string) GroupVersionKind {
 	}
 	return GroupVersionKind{Kind: kind}
 }
+
+// LifecycleSpec is used to manage resource enablement for binary compatibility.
+type LifecycleSpec struct {
+	// Default is the default enablement state for the resource.
+	Default bool
+	// PreRelease indicates the release lifecyle associated with the version.
+	PreRelease prerelease
+	// Version indicates the version from which this configuration is valid.
+	Version semver.Version
+}
+
+type prerelease string
+
+const (
+	Introduced = prerelease("INTRODUCED")
+	Deprecated = prerelease("DEPRECATED")
+	Removed    = prerelease("REMOVED")
+)
+
+type LifecycleSpecs []LifecycleSpec
+
+func (g LifecycleSpecs) Len() int           { return len(g) }
+func (g LifecycleSpecs) Less(i, j int) bool { return g[i].Version.LT(g[j].Version) }
+func (g LifecycleSpecs) Swap(i, j int)      { g[i], g[j] = g[j], g[i] }

@@ -48,6 +48,8 @@ type Scheme struct {
 	// the given version and name.
 	gvkToType map[schema.GroupVersionKind]reflect.Type
 
+	gvkToLifecycleSpecs map[schema.GroupVersionKind]schema.LifecycleSpecs
+
 	// typeToGVK allows one to find metadata for a given go object.
 	// The reflect.Type we index by should *not* be a pointer.
 	typeToGVK map[reflect.Type][]schema.GroupVersionKind
@@ -91,6 +93,7 @@ type FieldLabelConversionFunc func(label, value string) (internalLabel, internal
 func NewScheme() *Scheme {
 	s := &Scheme{
 		gvkToType:                 map[schema.GroupVersionKind]reflect.Type{},
+		gvkToLifecycleSpecs:       map[schema.GroupVersionKind]schema.LifecycleSpecs{},
 		typeToGVK:                 map[reflect.Type][]schema.GroupVersionKind{},
 		unversionedTypes:          map[reflect.Type]schema.GroupVersionKind{},
 		unversionedKinds:          map[string]reflect.Type{},
@@ -172,6 +175,7 @@ func (s *Scheme) AddKnownTypeWithName(gvk schema.GroupVersionKind, obj Object) {
 	}
 
 	s.gvkToType[gvk] = t
+	s.gvkToLifecycleSpecs[gvk] = GetLifecycleSpecs(obj)
 
 	for _, existingGvk := range s.typeToGVK[t] {
 		if existingGvk == gvk {
