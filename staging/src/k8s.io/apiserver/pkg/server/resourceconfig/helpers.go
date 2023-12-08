@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/blang/semver/v4"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	serverstore "k8s.io/apiserver/pkg/server/storage"
@@ -36,6 +37,8 @@ type GroupVersionRegistry interface {
 	IsVersionRegistered(v schema.GroupVersion) bool
 	// PrioritizedVersionsAllGroups returns all registered group versions.
 	PrioritizedVersionsAllGroups() []schema.GroupVersion
+	// GetLifecycleSpecsForResource returns the list of LifecycleSpec for the given resource.
+	GetLifecycleSpecsForResource(gvr schema.GroupVersionResource) runtime.LifecycleSpecs
 }
 
 // MergeResourceEncodingConfigs merges the given defaultResourceConfig with specific GroupVersionResource overrides.
@@ -85,6 +88,7 @@ func MergeAPIResourceConfigs(
 	defaultAPIResourceConfig *serverstore.ResourceConfig,
 	resourceConfigOverrides cliflag.ConfigurationMap,
 	registry GroupVersionRegistry,
+	compatibilityVersion semver.Version,
 ) (*serverstore.ResourceConfig, error) {
 	resourceConfig := defaultAPIResourceConfig
 	overrides := resourceConfigOverrides

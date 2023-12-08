@@ -57,6 +57,13 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&NetworkPolicy{},
 		&NetworkPolicyList{},
 	)
+	scheme.AddResourceLifecycleSpecs(SchemeGroupVersion, map[string]runtime.LifecycleSpecs{
+		"deployments":     runtime.GetLifecycleSpecs(&Deployment{}),
+		"daemonsets":      runtime.GetLifecycleSpecs(&DaemonSet{}),
+		"ingresses":       runtime.GetLifecycleSpecs(&Ingress{}),
+		"replicasets":     runtime.GetLifecycleSpecs(&ReplicaSet{}),
+		"networkPolicies": runtime.GetLifecycleSpecs(&NetworkPolicy{}),
+	})
 	// Add the watch version that applies
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

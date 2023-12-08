@@ -131,6 +131,8 @@ func (o *ResourceConfig) ResourceEnabled(resource schema.GroupVersionResource) b
 	if !o.versionEnabled(resource.GroupVersion()) {
 		return false
 	}
+	// If compatibilityVersion is lower than the version when the resource is introduced, disable the resource.
+
 	// they are enabled by default.
 	return true
 }

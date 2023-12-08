@@ -20,6 +20,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/blang/semver/v4"
 	"github.com/stretchr/testify/require"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -29,6 +30,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	serverstore "k8s.io/apiserver/pkg/server/storage"
 )
+
+var defaultCompatibilityVersion = semver.Version{Major: 1, Minor: 30}
 
 func TestParseRuntimeConfig(t *testing.T) {
 	scheme := newFakeScheme(t)
@@ -515,7 +518,7 @@ func TestParseRuntimeConfig(t *testing.T) {
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
 			t.Log(scheme.PrioritizedVersionsAllGroups())
-			actualDisablers, err := MergeAPIResourceConfigs(test.defaultResourceConfig(), test.runtimeConfig, scheme)
+			actualDisablers, err := MergeAPIResourceConfigs(test.defaultResourceConfig(), test.runtimeConfig, scheme, defaultCompatibilityVersion)
 			if err == nil && test.err {
 				t.Fatalf("expected error")
 			} else if err != nil && !test.err {

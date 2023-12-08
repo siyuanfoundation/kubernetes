@@ -51,6 +51,10 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&ValidatingAdmissionPolicyBinding{},
 		&ValidatingAdmissionPolicyBindingList{},
 	)
+	scheme.AddResourceLifecycleSpecs(SchemeGroupVersion, map[string]runtime.LifecycleSpecs{
+		"validatingadmissionpolicies":       runtime.GetLifecycleSpecs(&ValidatingAdmissionPolicy{}),
+		"validatingadmissionpolicybindings": runtime.GetLifecycleSpecs(&ValidatingAdmissionPolicyBinding{}),
+	})
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil
 }

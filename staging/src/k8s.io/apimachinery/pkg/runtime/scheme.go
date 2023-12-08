@@ -19,8 +19,10 @@ package runtime
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
+	"github.com/blang/semver/v4"
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/naming"
@@ -47,6 +49,9 @@ type Scheme struct {
 	// gvkToType allows one to figure out the go type of an object with
 	// the given version and name.
 	gvkToType map[schema.GroupVersionKind]reflect.Type
+
+	// gvkToLifecycleSpecs map[schema.GroupVersionKind]LifecycleSpecs
+	gvrToLifecycleSpecs map[schema.GroupVersionResource]LifecycleSpecs
 
 	// typeToGVK allows one to find metadata for a given go object.
 	// The reflect.Type we index by should *not* be a pointer.
@@ -90,7 +95,9 @@ type FieldLabelConversionFunc func(label, value string) (internalLabel, internal
 // NewScheme creates a new Scheme. This scheme is pluggable by default.
 func NewScheme() *Scheme {
 	s := &Scheme{
-		gvkToType:                 map[schema.GroupVersionKind]reflect.Type{},
+		gvkToType: map[schema.GroupVersionKind]reflect.Type{},
+		// gvkToLifecycleSpecs:       map[schema.GroupVersionKind]LifecycleSpecs{},
+		gvrToLifecycleSpecs:       map[schema.GroupVersionResource]LifecycleSpecs{},
 		typeToGVK:                 map[reflect.Type][]schema.GroupVersionKind{},
 		unversionedTypes:          map[reflect.Type]schema.GroupVersionKind{},
 		unversionedKinds:          map[string]reflect.Type{},
@@ -149,6 +156,24 @@ func (s *Scheme) AddKnownTypes(gv schema.GroupVersion, types ...Object) {
 	}
 }
 
+func (s *Scheme) AddResourceLifecycleSpecs(gv schema.GroupVersion, resourceLifecycleSpecs map[string]LifecycleSpecs) {
+	for k, v := range resourceLifecycleSpecs {
+		gvr := gv.WithResource(k)
+		if old, found := s.gvrToLifecycleSpecs[gvr]; found && !reflect.DeepEqual(old, v) {
+			panic(fmt.Sprintf("Double registration of different LifecycleSpecs for %v: old=%v, new=%v in scheme %q", gvr, old, v, s.schemeName))
+		}
+		s.gvrToLifecycleSpecs[gvr] = v
+	}
+}
+
+// GetLifecycleSpecsForResource returns the list of LifecycleSpec for the given resource.
+func (s *Scheme) GetLifecycleSpecsForResource(gvr schema.GroupVersionResource) LifecycleSpecs {
+	if val, found := s.gvrToLifecycleSpecs[gvr]; found {
+		return val
+	}
+	return LifecycleSpecs{}
+}
+
 // AddKnownTypeWithName is like AddKnownTypes, but it lets you specify what this type should
 // be encoded as. Useful for testing when you don't want to make multiple packages to define
 // your structs. Version may not be empty - use the APIVersionInternal constant if you have a
@@ -172,6 +197,7 @@ func (s *Scheme) AddKnownTypeWithName(gvk schema.GroupVersionKind, obj Object) {
 	}
 
 	s.gvkToType[gvk] = t
+	// s.gvkToLifecycleSpecs[gvk] = GetLifecycleSpecs(obj)
 
 	for _, existingGvk := range s.typeToGVK[t] {
 		if existingGvk == gvk {
@@ -699,6 +725,78 @@ func (s *Scheme) addObservedVersion(version schema.GroupVersion) {
 
 func (s *Scheme) Name() string {
 	return s.schemeName
+}
+
+// LifecycleSpec is used to manage resource enablement for binary compatibility.
+type LifecycleSpec struct {
+	// Default is the default enablement state for the resource.
+	Default bool
+	// PreRelease indicates the release lifecyle associated with the version.
+	PreRelease prerelease
+	// Version indicates the version from which this configuration is valid.
+	Version semver.Version
+}
+
+type prerelease string
+
+const (
+	Nonexist   = prerelease("NONEXIST")
+	Introduced = prerelease("INTRODUCED")
+	Deprecated = prerelease("DEPRECATED")
+	Removed    = prerelease("REMOVED")
+)
+
+type LifecycleSpecs []LifecycleSpec
+
+func (g LifecycleSpecs) Len() int           { return len(g) }
+func (g LifecycleSpecs) Less(i, j int) bool { return g[i].Version.LT(g[j].Version) }
+func (g LifecycleSpecs) Swap(i, j int)      { g[i], g[j] = g[j], g[i] }
+
+func GetLifecycleSpecs(obj Object) LifecycleSpecs {
+	var lifecycles LifecycleSpecs
+	introduced, isIntroduced := obj.(apiLifecycleIntroduced)
+	if isIntroduced {
+		major, minor := introduced.APILifecycleIntroduced()
+		lifecycles = append(lifecycles, LifecycleSpec{
+			Default: true, PreRelease: Introduced,
+			Version: semver.Version{Major: uint64(major), Minor: uint64(minor)},
+		})
+		// If there is an explicit Introduced version, then before the Introduced lifecycle, the api is Nonexist.
+		lifecycles = append(lifecycles, LifecycleSpec{
+			Default: false, PreRelease: Nonexist,
+			Version: semver.Version{Major: 0, Minor: 0},
+		})
+	}
+	deprecated, isDeprecated := obj.(apiLifecycleDeprecated)
+	if isDeprecated {
+		major, minor := deprecated.APILifecycleDeprecated()
+		lifecycles = append(lifecycles, LifecycleSpec{
+			Default: true, PreRelease: Deprecated,
+			Version: semver.Version{Major: uint64(major), Minor: uint64(minor)},
+		})
+	}
+	removed, isRemoved := obj.(apiLifecycleRemoved)
+	if isRemoved {
+		major, minor := removed.APILifecycleRemoved()
+		lifecycles = append(lifecycles, LifecycleSpec{
+			Default: false, PreRelease: Removed,
+			Version: semver.Version{Major: uint64(major), Minor: uint64(minor)},
+		})
+	}
+	sort.Sort(lifecycles)
+	return lifecycles
+}
+
+type apiLifecycleIntroduced interface {
+	APILifecycleIntroduced() (major, minor int)
+}
+
+type apiLifecycleDeprecated interface {
+	APILifecycleDeprecated() (major, minor int)
+}
+
+type apiLifecycleRemoved interface {
+	APILifecycleRemoved() (major, minor int)
 }
 
 // internalPackages are packages that ignored when creating a default reflector name. These packages are in the common
