@@ -842,6 +842,13 @@ func (c *Cacher) GetList(ctx context.Context, key string, opts storage.ListOptio
 func (c *Cacher) GuaranteedUpdate(
 	ctx context.Context, key string, destination runtime.Object, ignoreNotFound bool,
 	preconditions *storage.Preconditions, tryUpdate storage.UpdateFunc, _ runtime.Object) error {
+	return c.UpdateWithExponentialBackoff(ctx, key, destination, ignoreNotFound, preconditions, tryUpdate, nil, wait.Backoff{})
+}
+
+// UpdateWithExponentialBackoff implements storage.Interface.
+func (c *Cacher) UpdateWithExponentialBackoff(
+	ctx context.Context, key string, destination runtime.Object, ignoreNotFound bool,
+	preconditions *storage.Preconditions, tryUpdate storage.UpdateFunc, _ runtime.Object, backoff wait.Backoff) error {
 	// Ignore the suggestion and try to pass down the current version of the object
 	// read from cache.
 	if elem, exists, err := c.watchCache.GetByKey(key); err != nil {
@@ -850,10 +857,10 @@ func (c *Cacher) GuaranteedUpdate(
 		// DeepCopy the object since we modify resource version when serializing the
 		// current object.
 		currObj := elem.(*storeElement).Object.DeepCopyObject()
-		return c.storage.GuaranteedUpdate(ctx, key, destination, ignoreNotFound, preconditions, tryUpdate, currObj)
+		return c.storage.UpdateWithExponentialBackoff(ctx, key, destination, ignoreNotFound, preconditions, tryUpdate, currObj, backoff)
 	}
 	// If we couldn't get the object, fallback to no-suggestion.
-	return c.storage.GuaranteedUpdate(ctx, key, destination, ignoreNotFound, preconditions, tryUpdate, nil)
+	return c.storage.UpdateWithExponentialBackoff(ctx, key, destination, ignoreNotFound, preconditions, tryUpdate, nil, backoff)
 }
 
 // Count implements storage.Interface.

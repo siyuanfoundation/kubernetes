@@ -36,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/audit"
 	"k8s.io/apiserver/pkg/storage"
@@ -382,6 +383,13 @@ func (s *store) conditionalDelete(
 func (s *store) GuaranteedUpdate(
 	ctx context.Context, key string, destination runtime.Object, ignoreNotFound bool,
 	preconditions *storage.Preconditions, tryUpdate storage.UpdateFunc, cachedExistingObject runtime.Object) error {
+	return s.UpdateWithExponentialBackoff(ctx, key, destination, ignoreNotFound, preconditions, tryUpdate, cachedExistingObject, wait.Backoff{})
+}
+
+// UpdateWithExponentialBackoff implements storage.Interface.UpdateWithExponentialBackoff.
+func (s *store) UpdateWithExponentialBackoff(
+	ctx context.Context, key string, destination runtime.Object, ignoreNotFound bool,
+	preconditions *storage.Preconditions, tryUpdate storage.UpdateFunc, cachedExistingObject runtime.Object, backoff wait.Backoff) error {
 	preparedKey, err := s.prepareKey(key)
 	if err != nil {
 		return err
@@ -414,29 +422,29 @@ func (s *store) GuaranteedUpdate(
 	span.AddEvent("initial value restored")
 
 	transformContext := authenticatedDataString(preparedKey)
-	for {
+	updateStepFunc := func() (bool, error) {
 		if err := preconditions.Check(preparedKey, origState.obj); err != nil {
 			// If our data is already up to date, return the error
 			if origStateIsCurrent {
-				return err
+				return false, err
 			}
 
 			// It's possible we were working with stale data
 			// Actually fetch
 			origState, err = getCurrentState()
 			if err != nil {
-				return err
+				return false, err
 			}
 			origStateIsCurrent = true
 			// Retry
-			continue
+			return false, nil
 		}
 
 		ret, ttl, err := s.updateState(origState, tryUpdate)
 		if err != nil {
 			// If our data is already up to date, return the error
 			if origStateIsCurrent {
-				return err
+				return false, err
 			}
 
 			// It's possible we were working with stale data
@@ -447,24 +455,24 @@ func (s *store) GuaranteedUpdate(
 			// Actually fetch
 			origState, err = getCurrentState()
 			if err != nil {
-				return err
+				return false, err
 			}
 			origStateIsCurrent = true
 
 			// it turns out our cached data was not stale, return the error
 			if cachedRev == origState.rev {
-				return cachedUpdateErr
+				return false, cachedUpdateErr
 			}
 
 			// Retry
-			continue
+			return false, nil
 		}
 
 		span.AddEvent("About to Encode")
 		data, err := runtime.Encode(s.codec, ret)
 		if err != nil {
 			span.AddEvent("Encode failed", attribute.Int("len", len(data)), attribute.String("err", err.Error()))
-			return err
+			return false, err
 		}
 		span.AddEvent("Encode succeeded", attribute.Int("len", len(data)))
 		if !origState.stale && bytes.Equal(data, origState.data) {
@@ -474,12 +482,12 @@ func (s *store) GuaranteedUpdate(
 			if !origStateIsCurrent {
 				origState, err = getCurrentState()
 				if err != nil {
-					return err
+					return false, err
 				}
 				origStateIsCurrent = true
 				if !bytes.Equal(data, origState.data) {
 					// original data changed, restart loop
-					continue
+					return false, nil
 				}
 			}
 			// recheck that the data from etcd is not stale before short-circuiting a write
@@ -487,22 +495,22 @@ func (s *store) GuaranteedUpdate(
 				err = decode(s.codec, s.versioner, origState.data, destination, origState.rev)
 				if err != nil {
 					recordDecodeError(s.groupResourceString, preparedKey)
-					return err
+					return false, err
 				}
-				return nil
+				return true, nil
 			}
 		}
 
 		newData, err := s.transformer.TransformToStorage(ctx, data, transformContext)
 		if err != nil {
 			span.AddEvent("TransformToStorage failed", attribute.String("err", err.Error()))
-			return storage.NewInternalError(err.Error())
+			return false, storage.NewInternalError(err.Error())
 		}
 		span.AddEvent("TransformToStorage succeeded")
 
 		opts, err := s.ttlOpts(ctx, int64(ttl))
 		if err != nil {
-			return err
+			return false, err
 		}
 		span.AddEvent("Transaction prepared")
 
@@ -517,7 +525,7 @@ func (s *store) GuaranteedUpdate(
 		metrics.RecordEtcdRequest("update", s.groupResourceString, err, startTime)
 		if err != nil {
 			span.AddEvent("Txn call failed", attribute.String("err", err.Error()))
-			return err
+			return false, err
 		}
 		span.AddEvent("Txn call completed")
 		span.AddEvent("Transaction committed")
@@ -526,11 +534,11 @@ func (s *store) GuaranteedUpdate(
 			klog.V(4).Infof("GuaranteedUpdate of %s failed because of a conflict, going to retry", preparedKey)
 			origState, err = s.getState(ctx, getResp, preparedKey, v, ignoreNotFound)
 			if err != nil {
-				return err
+				return false, err
 			}
 			span.AddEvent("Retry value restored")
 			origStateIsCurrent = true
-			continue
+			return false, nil
 		}
 		putResp := txnResp.Responses[0].GetResponsePut()
 
@@ -538,10 +546,18 @@ func (s *store) GuaranteedUpdate(
 		if err != nil {
 			span.AddEvent("decode failed", attribute.Int("len", len(data)), attribute.String("err", err.Error()))
 			recordDecodeError(s.groupResourceString, preparedKey)
-			return err
+			return false, err
 		}
 		span.AddEvent("decode succeeded", attribute.Int("len", len(data)))
-		return nil
+		return true, nil
+	}
+	if backoff.Duration > 0 {
+		return wait.ExponentialBackoff(backoff, updateStepFunc)
+	}
+	for {
+		if stop, err := updateStepFunc(); stop || err != nil {
+			return err
+		}
 	}
 }
 

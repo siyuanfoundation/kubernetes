@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 )
 
@@ -233,6 +234,42 @@ type Interface interface {
 	GuaranteedUpdate(
 		ctx context.Context, key string, destination runtime.Object, ignoreNotFound bool,
 		preconditions *Preconditions, tryUpdate UpdateFunc, cachedExistingObject runtime.Object) error
+
+	// UpdateWithExponentialBackoff keeps calling 'tryUpdate()' with exponential backoff to update
+	// key 'key' (of type 'destination'), retrying the update until success or the backoff is done.
+	// Note that object passed to tryUpdate may change across invocations of tryUpdate() if
+	// other writers are simultaneously updating it, so tryUpdate() needs to take into account
+	// the current contents of the object when deciding how the update object should look.
+	// If the key doesn't exist, it will return NotFound storage error if ignoreNotFound=false
+	// else `destination` will be set to the zero value of it's type.
+	// If the eventual successful invocation of `tryUpdate` returns an output with the same serialized
+	// contents as the input, it won't perform any update, but instead set `destination` to an object with those
+	// contents.
+	// If 'cachedExistingObject' is non-nil, it can be used as a suggestion about the
+	// current version of the object to avoid read operation from storage to get it.
+	// However, the implementations have to retry in case suggestion is stale.
+	//
+	// Example:
+	//
+	// s := /* implementation of Interface */
+	// err := s.UpdateWithExponentialBackoff(
+	//     "myKey", &MyType{}, true, preconditions,
+	//     func(input runtime.Object, res ResponseMeta) (runtime.Object, *uint64, error) {
+	//       // Before each invocation of the user defined function, "input" is reset to
+	//       // current contents for "myKey" in database.
+	//       curr := input.(*MyType)  // Guaranteed to succeed.
+	//
+	//       // Make the modification
+	//       curr.Counter++
+	//
+	//       // Return the modified object - return an error to stop iterating. Return
+	//       // a uint64 to alter the TTL on the object, or nil to keep it the same value.
+	//       return cur, nil, nil
+	//    }, cachedExistingObject, clientsetretry.DefaultBackoff
+	// )
+	UpdateWithExponentialBackoff(
+		ctx context.Context, key string, destination runtime.Object, ignoreNotFound bool,
+		preconditions *Preconditions, tryUpdate UpdateFunc, cachedExistingObject runtime.Object, backoff wait.Backoff) error
 
 	// Count returns number of different entries under the key (generally being path prefix).
 	Count(key string) (int64, error)
