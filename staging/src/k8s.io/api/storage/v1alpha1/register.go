@@ -50,5 +50,12 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	)
 
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
+
+	scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("volumeattachment"), &VolumeAttachment{})
+	scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("volumeattachments"), &VolumeAttachmentList{})
+	scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("csistoragecapacity"), &CSIStorageCapacity{})
+	scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("csistoragecapacities"), &CSIStorageCapacityList{})
+	scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("volumeattributesclass"), &VolumeAttributesClass{})
+	scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("volumeattributesclasses"), &VolumeAttributesClassList{})
 	return nil
 }

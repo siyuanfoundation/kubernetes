@@ -82,7 +82,7 @@ func setupWithResources(t *testing.T, groupVersions []schema.GroupVersion, resou
 	client, config, teardown := framework.StartTestServer(ctx, t, framework.TestServerSetup{
 		ModifyServerConfig: func(config *controlplane.Config) {
 			if len(groupVersions) > 0 || len(resources) > 0 {
-				resourceConfig := controlplane.DefaultAPIResourceConfigSource()
+				resourceConfig := controlplane.DefaultAPIResourceConfigSource("", nil)
 				resourceConfig.EnableVersions(groupVersions...)
 				resourceConfig.EnableResources(resources...)
 				config.ExtraConfig.APIResourceConfigSource = resourceConfig
@@ -2931,6 +2931,63 @@ func TestDedupOwnerReferences(t *testing.T) {
 	// cleanup
 	if err := client.CoreV1().Namespaces().Delete(context.TODO(), ns, metav1.DeleteOptions{}); err != nil {
 		t.Fatalf("failed to delete test ns: %v", err)
+	}
+}
+
+func TestCompatibilityVersion(t *testing.T) {
+	server := kubeapiservertesting.StartTestServerOrDie(t, nil, []string{"--compatibility-version=1.22"}, framework.SharedEtcd())
+	defer server.TearDownFn()
+
+	rt, err := restclient.TransportFor(server.ClientConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tcs := []struct {
+		path               string
+		expectedStatusCode int
+	}{
+		{
+			path:               "/",
+			expectedStatusCode: 200,
+		},
+		{
+			path:               "/apis/apps/v1/deployments",
+			expectedStatusCode: 200,
+		},
+		{
+			path:               "/apis/flowcontrol.apiserver.k8s.io/v1beta1/flowschemas", // introduced at 1.20, removed at 1.26
+			expectedStatusCode: 200,
+		},
+		{
+			path:               "/apis/flowcontrol.apiserver.k8s.io/v1beta2/flowschemas", // introduced at 1.23, removed at 1.29
+			expectedStatusCode: 404,
+		},
+		{
+			path:               "/apis/flowcontrol.apiserver.k8s.io/v1beta3/flowschemas", // introduced at 1.26, removed at 1.32
+			expectedStatusCode: 404,
+		},
+		{
+			path:               "/apis/authentication.k8s.io/v1beta1/selfsubjectreviews", // introduced at 1.27
+			expectedStatusCode: 404,
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.path, func(t *testing.T) {
+			req, err := http.NewRequest("GET", server.ClientConfig.Host+tc.path, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := rt.RoundTrip(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if resp.StatusCode != tc.expectedStatusCode {
+				t.Errorf("expect status code: %d, got : %d\n", tc.expectedStatusCode, resp.StatusCode)
+			}
+			defer resp.Body.Close()
+		})
 	}
 }
 

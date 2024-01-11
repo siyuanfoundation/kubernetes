@@ -20,6 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/component-base/version"
 )
 
 // GroupName is the name of api group
@@ -54,5 +55,10 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&PriorityLevelConfigurationList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
+
+	scheme.SetGroupVersionLifecycle(SchemeGroupVersion, schema.APILifecycle{
+		VersionIntroduced: version.MustParseVersion("1.26"),
+		VersionRemoved:    version.MustParseVersion("1.32"),
+	})
 	return nil
 }

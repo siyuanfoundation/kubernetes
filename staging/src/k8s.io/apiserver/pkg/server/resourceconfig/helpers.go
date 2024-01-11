@@ -84,7 +84,6 @@ var (
 func MergeAPIResourceConfigs(
 	defaultAPIResourceConfig *serverstore.ResourceConfig,
 	resourceConfigOverrides cliflag.ConfigurationMap,
-	registry GroupVersionRegistry,
 ) (*serverstore.ResourceConfig, error) {
 	resourceConfig := defaultAPIResourceConfig
 	overrides := resourceConfigOverrides
@@ -134,12 +133,12 @@ func MergeAPIResourceConfigs(
 		}
 
 		// Exclude group not registered into the registry.
-		if !registry.IsGroupRegistered(groupVersion.Group) {
+		if !resourceConfig.IsGroupRegistered(groupVersion.Group) {
 			continue
 		}
 
 		// Verify that the groupVersion is registered into registry.
-		if !registry.IsVersionRegistered(groupVersion) {
+		if !resourceConfig.IsVersionRegistered(groupVersion) {
 			return nil, fmt.Errorf("group version %s that has not been registered", groupVersion.String())
 		}
 		enabled, err := getRuntimeConfigValue(overrides, key, false)

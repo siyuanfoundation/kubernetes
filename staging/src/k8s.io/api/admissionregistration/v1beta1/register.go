@@ -56,5 +56,14 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&ValidatingAdmissionPolicyBindingList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
+
+	scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("validatingwebhookconfiguration"), &ValidatingWebhookConfiguration{})
+	scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("validatingwebhookconfigurations"), &ValidatingWebhookConfigurationList{})
+	scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("mutatingwebhookconfiguration"), &MutatingWebhookConfiguration{})
+	scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("mutatingwebhookconfigurations"), &MutatingWebhookConfigurationList{})
+	scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("validatingadmissionpolicy"), &ValidatingAdmissionPolicy{})
+	scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("validatingadmissionpolicies"), &ValidatingAdmissionPolicyList{})
+	scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("validatingadmissionpolicybinding"), &ValidatingAdmissionPolicyBinding{})
+	scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("validatingadmissionpolicybindings"), &ValidatingAdmissionPolicyBindingList{})
 	return nil
 }

@@ -62,8 +62,7 @@ func CreateAPIExtensionsConfig(
 	// override MergedResourceConfig with apiextensions defaults and registry
 	if err := commandOptions.APIEnablement.ApplyTo(
 		&genericConfig,
-		apiextensionsapiserver.DefaultAPIResourceConfigSource(),
-		apiextensionsapiserver.Scheme); err != nil {
+		apiextensionsapiserver.DefaultAPIResourceConfigSource(genericConfig.CompatibilityVersion, apiextensionsapiserver.Scheme)); err != nil {
 		return nil, err
 	}
 	apiextensionsConfig := &apiextensionsapiserver.Config{

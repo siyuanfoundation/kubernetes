@@ -19,6 +19,8 @@ package schema
 import (
 	"fmt"
 	"strings"
+
+	"github.com/blang/semver/v4"
 )
 
 // ParseResourceArg takes the common style of string which may be either `resource.group.com` or `resource.version.group.com`
@@ -302,4 +304,9 @@ func FromAPIVersionAndKind(apiVersion, kind string) GroupVersionKind {
 		return GroupVersionKind{Group: gv.Group, Version: gv.Version, Kind: kind}
 	}
 	return GroupVersionKind{Kind: kind}
+}
+
+type APILifecycle struct {
+	VersionIntroduced semver.Version
+	VersionRemoved    semver.Version
 }

@@ -18,9 +18,11 @@ package runtime
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 
+	"github.com/blang/semver/v4"
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/naming"
@@ -82,6 +84,16 @@ type Scheme struct {
 	// schemeName is the name of this scheme.  If you don't specify a name, the stack of the NewScheme caller will be used.
 	// This is useful for error reporting to indicate the origin of the scheme.
 	schemeName string
+
+	// // gvToVersionIntroduced maps GroupVersion to the binary version it is introduced.
+	// gvToVersionIntroduced map[schema.GroupVersion]semver.Version
+	// // gvToVersionRemoved maps GroupVersion to the binary version it is removed.
+	// gvToVersionRemoved map[schema.GroupVersion]semver.Version
+
+	// gvToAPILifecycle maps GroupVersion to its APILifecycle.
+	gvToAPILifecycle map[schema.GroupVersion]schema.APILifecycle
+	// gvrToAPILifecycle maps GroupVersionResource to its APILifecycle.
+	gvrToAPILifecycle map[schema.GroupVersionResource]schema.APILifecycle
 }
 
 // FieldLabelConversionFunc converts a field selector to internal representation.
@@ -98,6 +110,8 @@ func NewScheme() *Scheme {
 		defaulterFuncs:            map[reflect.Type]func(interface{}){},
 		versionPriority:           map[string][]string{},
 		schemeName:                naming.GetNameFromCallsite(internalPackages...),
+		gvToAPILifecycle:          map[schema.GroupVersion]schema.APILifecycle{},
+		gvrToAPILifecycle:         map[schema.GroupVersionResource]schema.APILifecycle{},
 	}
 	s.converter = conversion.NewConverter(nil)
 
@@ -695,6 +709,67 @@ func (s *Scheme) addObservedVersion(version schema.GroupVersion) {
 	}
 
 	s.observedVersions = append(s.observedVersions, version)
+}
+
+func objectAPILifecycle(obj Object) (schema.APILifecycle, bool) {
+	hasLifecycle := false
+	ret := defaultAPILifecycle()
+	introduced, isIntroduced := obj.(apiLifecycleIntroduced)
+	if isIntroduced {
+		major, minor := introduced.APILifecycleIntroduced()
+		ret.VersionIntroduced = semver.Version{Major: uint64(major), Minor: uint64(minor)}
+		hasLifecycle = true
+	}
+	removed, isRemoved := obj.(apiLifecycleRemoved)
+	if isRemoved {
+		major, minor := removed.APILifecycleRemoved()
+		ret.VersionRemoved = semver.Version{Major: uint64(major), Minor: uint64(minor)}
+		hasLifecycle = true
+	}
+
+	return ret, hasLifecycle
+}
+
+func defaultAPILifecycle() schema.APILifecycle {
+	return schema.APILifecycle{VersionRemoved: semver.Version{Major: math.MaxUint64, Minor: math.MaxUint64}}
+}
+
+type apiLifecycleIntroduced interface {
+	APILifecycleIntroduced() (major, minor int)
+}
+
+type apiLifecycleRemoved interface {
+	APILifecycleRemoved() (major, minor int)
+}
+
+func (s *Scheme) SetGroupVersionLifecycle(gv schema.GroupVersion, lifecycle schema.APILifecycle) {
+	if lifecycle.VersionRemoved.EQ(semver.Version{}) {
+		lifecycle.VersionRemoved = defaultAPILifecycle().VersionRemoved
+	}
+	s.gvToAPILifecycle[gv] = lifecycle
+}
+
+func (s *Scheme) SetResourceLifecycle(gvr schema.GroupVersionResource, obj Object) {
+	lifecycle, hasLifecycle := objectAPILifecycle(obj)
+	if hasLifecycle {
+		s.gvrToAPILifecycle[gvr] = lifecycle
+	}
+}
+
+// GroupVersionLifecycle returns the APILifecycle for the GroupVersion.
+func (s *Scheme) GroupVersionLifecycle(gv schema.GroupVersion) schema.APILifecycle {
+	if lifecycle, ok := s.gvToAPILifecycle[gv]; ok {
+		return lifecycle
+	}
+	return defaultAPILifecycle()
+}
+
+// ResourceLifecycle returns the APILifecycle for the GroupVersionResource.
+func (s *Scheme) ResourceLifecycle(gvr schema.GroupVersionResource) schema.APILifecycle {
+	if lifecycle, ok := s.gvrToAPILifecycle[gvr]; ok {
+		return lifecycle
+	}
+	return s.GroupVersionLifecycle(gvr.GroupVersion())
 }
 
 func (s *Scheme) Name() string {

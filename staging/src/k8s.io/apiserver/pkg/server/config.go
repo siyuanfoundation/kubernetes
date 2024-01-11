@@ -149,6 +149,8 @@ type Config struct {
 
 	// Version will enable the /version endpoint if non-nil
 	Version *version.Info
+	// CompatibilityVersion will enable/disable apis based on CompatibilityVersion which can be different from binary version.
+	CompatibilityVersion string
 	// AuditBackend is where audit events are sent to.
 	AuditBackend audit.Backend
 	// AuditPolicyRuleEvaluator makes the decision of whether and how to audit log a request.
@@ -372,8 +374,16 @@ func init() {
 
 // NewConfig returns a Config struct with the default values
 func NewConfig(codecs serializer.CodecFactory) *Config {
+	return NewConfigWithCompatibilityVersion(codecs, "")
+}
+
+// NewConfigWithCompatibilityVersion returns a Config struct with the default values for given compatibilityVersion
+func NewConfigWithCompatibilityVersion(codecs serializer.CodecFactory, compatibilityVersion string) *Config {
 	defaultHealthChecks := []healthz.HealthChecker{healthz.PingHealthz, healthz.LogHealthz}
 	var id string
+	if len(compatibilityVersion) > 0 {
+		utilfeature.DefaultFeatureGate.SetCompatibilityVersion(compatibilityVersion)
+	}
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIServerIdentity) {
 		hostname, err := hostnameFunc()
 		if err != nil {
@@ -451,13 +461,14 @@ func NewConfig(codecs serializer.CodecFactory) *Config {
 		APIServerID:           id,
 		StorageVersionManager: storageversion.NewDefaultManager(),
 		TracerProvider:        tracing.NewNoopTracerProvider(),
+		CompatibilityVersion:  compatibilityVersion,
 	}
 }
 
 // NewRecommendedConfig returns a RecommendedConfig struct with the default values
-func NewRecommendedConfig(codecs serializer.CodecFactory) *RecommendedConfig {
+func NewRecommendedConfig(codecs serializer.CodecFactory, compatibilityVersion string) *RecommendedConfig {
 	return &RecommendedConfig{
-		Config: *NewConfig(codecs),
+		Config: *NewConfigWithCompatibilityVersion(codecs, compatibilityVersion),
 	}
 }
 
@@ -814,11 +825,14 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		APIServerID:           c.APIServerID,
 		StorageVersionManager: c.StorageVersionManager,
 
-		Version: c.Version,
+		Version:              c.Version,
+		CompatibilityVersion: c.CompatibilityVersion,
 
 		muxAndDiscoveryCompleteSignals: map[string]<-chan struct{}{},
 	}
-
+	if len(c.CompatibilityVersion) > 0 {
+		utilfeature.DefaultFeatureGate.SetCompatibilityVersion(c.CompatibilityVersion)
+	}
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.AggregatedDiscoveryEndpoint) {
 		manager := c.AggregatedDiscoveryGroupManager
 		if manager == nil {

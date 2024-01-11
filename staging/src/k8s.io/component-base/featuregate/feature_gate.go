@@ -381,6 +381,8 @@ func (f *featureGate) GetAllVersioned() map[Feature]VersionedSpecs {
 
 // SetCompatibilityVersion changes compatibilityVersion from default binary version to the specified version.
 func (f *featureGate) SetCompatibilityVersion(v string) {
+	f.lock.Lock()
+	defer f.lock.Unlock()
 	f.compatibilityVersion = version.MustParseVersion(v)
 }
 

@@ -237,6 +237,8 @@ type GenericAPIServer struct {
 
 	// Version will enable the /version endpoint if non-nil
 	Version *version.Info
+	// CompatibilityVersion will enable/disable apis based on CompatibilityVersion which can be different from binary version.
+	CompatibilityVersion string
 
 	// lifecycleSignals provides access to the various signals that happen during the life cycle of the apiserver.
 	lifecycleSignals lifecycleSignals
@@ -728,6 +730,7 @@ func (s preparedGenericAPIServer) NonBlockingRun(stopCh <-chan struct{}, shutdow
 // installAPIResources is a private method for installing the REST storage backing each api groupversionresource
 func (s *GenericAPIServer) installAPIResources(apiPrefix string, apiGroupInfo *APIGroupInfo, typeConverter managedfields.TypeConverter) error {
 	var resourceInfos []*storageversion.ResourceInfo
+	klog.V(1).Infof("GenericAPIServer DefaultFeatureGate.CompatibilityVersion = %v", utilfeature.DefaultFeatureGate.GetCompatibilityVersion())
 	for _, groupVersion := range apiGroupInfo.PrioritizedVersions {
 		if len(apiGroupInfo.VersionedResourcesStorageMap[groupVersion.Version]) == 0 {
 			klog.Warningf("Skipping API %v because it has no resources.", groupVersion)
