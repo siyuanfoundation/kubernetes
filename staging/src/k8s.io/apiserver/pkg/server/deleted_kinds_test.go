@@ -21,6 +21,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blang/semver/v4"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/dump"
@@ -43,7 +44,7 @@ func Test_newResourceExpirationEvaluator(t *testing.T) {
 				Minor:      "20+",
 				GitVersion: "v1.20.0-beta.0.62+a5d22854a2ac21",
 			},
-			expected: resourceExpirationEvaluator{currentMajor: 1, currentMinor: 20},
+			expected: resourceExpirationEvaluator{compatibilityVersion: semver.Version{Major: 1, Minor: 20}},
 		},
 		{
 			name: "alpha",
@@ -52,7 +53,7 @@ func Test_newResourceExpirationEvaluator(t *testing.T) {
 				Minor:      "20+",
 				GitVersion: "v1.20.0-alpha.0.62+a5d22854a2ac21",
 			},
-			expected: resourceExpirationEvaluator{currentMajor: 1, currentMinor: 20, isAlpha: true},
+			expected: resourceExpirationEvaluator{compatibilityVersion: semver.Version{Major: 1, Minor: 20}, isAlpha: true},
 		},
 		{
 			name: "maintenance",
@@ -61,21 +62,21 @@ func Test_newResourceExpirationEvaluator(t *testing.T) {
 				Minor:      "20+",
 				GitVersion: "v1.20.1",
 			},
-			expected: resourceExpirationEvaluator{currentMajor: 1, currentMinor: 20},
+			expected: resourceExpirationEvaluator{compatibilityVersion: semver.Version{Major: 1, Minor: 20}},
 		},
 		{
 			name: "bad",
 			currentVersion: version.Info{
 				Major:      "1",
 				Minor:      "20something+",
-				GitVersion: "v1.20.1",
+				GitVersion: "v1.20something+.1",
 			},
-			expectedErr: `strconv.ParseInt: parsing "20something": invalid syntax`,
+			expectedErr: `Short version cannot contain PreRelease/Build meta data`,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actual, actualErr := NewResourceExpirationEvaluator(tt.currentVersion)
+			actual, actualErr := NewResourceExpirationEvaluator(tt.currentVersion.GitVersion)
 
 			checkErr(t, actualErr, tt.expectedErr)
 			if actualErr != nil {
@@ -90,30 +91,62 @@ func Test_newResourceExpirationEvaluator(t *testing.T) {
 	}
 }
 
-func storageRemovedIn(major, minor int) removedInStorage {
-	return removedInStorage{major: major, minor: minor}
+func storageRemovedIn(major, minor int) storageWithLifecycle {
+	return storageWithLifecycle{majorRemoved: major, minorRemoved: minor, missingIntroduced: true}
 }
 
-func storageNeverRemoved() removedInStorage {
-	return removedInStorage{neverRemoved: true}
+func storageIntroducedIn(major, minor int) storageWithLifecycle {
+	return storageWithLifecycle{majorIntroduced: major, minorIntroduced: minor, neverRemoved: true}
 }
 
-type removedInStorage struct {
-	major, minor int
-	neverRemoved bool
+func storageNeverRemoved() storageWithLifecycle {
+	return storageWithLifecycle{neverRemoved: true, missingIntroduced: true}
 }
 
-func (r removedInStorage) New() runtime.Object {
-	if r.neverRemoved {
-		return neverRemovedObj{}
+func storageIntroducedInAndRemovedIn(majorIntroduced, minorIntroduced, majorRemoved, minorRemoved int) storageWithLifecycle {
+	return storageWithLifecycle{
+		majorRemoved: majorRemoved, minorRemoved: minorRemoved,
+		majorIntroduced: majorIntroduced, minorIntroduced: minorIntroduced,
 	}
-	return removedInObj{major: r.major, minor: r.minor}
 }
 
-func (r removedInStorage) Destroy() {
+type storageWithLifecycle struct {
+	majorRemoved, minorRemoved, majorIntroduced, minorIntroduced int
+	neverRemoved                                                 bool
+	missingIntroduced                                            bool
+}
+
+func (r storageWithLifecycle) New() runtime.Object {
+	if r.neverRemoved && r.missingIntroduced {
+		return notLifecycledObject{}
+	}
+	if r.neverRemoved {
+		return neverRemovedObj{majorIntroduced: r.majorIntroduced, minorIntroduced: r.minorIntroduced}
+	}
+	if r.missingIntroduced {
+		return missingIntroducedObj{majorRemoved: r.majorRemoved, minorRemoved: r.minorRemoved}
+	}
+	return lifecycledObject{
+		majorRemoved: r.majorRemoved, minorRemoved: r.minorRemoved,
+		majorIntroduced: r.majorIntroduced, minorIntroduced: r.minorIntroduced,
+	}
+}
+
+func (r storageWithLifecycle) Destroy() {
+}
+
+type notLifecycledObject struct {
+}
+
+func (r notLifecycledObject) GetObjectKind() schema.ObjectKind {
+	panic("don't do this")
+}
+func (r notLifecycledObject) DeepCopyObject() runtime.Object {
+	panic("don't do this either")
 }
 
 type neverRemovedObj struct {
+	majorIntroduced, minorIntroduced int
 }
 
 func (r neverRemovedObj) GetObjectKind() schema.ObjectKind {
@@ -122,19 +155,39 @@ func (r neverRemovedObj) GetObjectKind() schema.ObjectKind {
 func (r neverRemovedObj) DeepCopyObject() runtime.Object {
 	panic("don't do this either")
 }
-
-type removedInObj struct {
-	major, minor int
+func (r neverRemovedObj) APILifecycleIntroduced() (major, minor int) {
+	return r.majorIntroduced, r.minorIntroduced
 }
 
-func (r removedInObj) GetObjectKind() schema.ObjectKind {
+type missingIntroducedObj struct {
+	majorRemoved, minorRemoved int
+}
+
+func (r missingIntroducedObj) GetObjectKind() schema.ObjectKind {
 	panic("don't do this")
 }
-func (r removedInObj) DeepCopyObject() runtime.Object {
+func (r missingIntroducedObj) DeepCopyObject() runtime.Object {
 	panic("don't do this either")
 }
-func (r removedInObj) APILifecycleRemoved() (major, minor int) {
-	return r.major, r.minor
+func (r missingIntroducedObj) APILifecycleRemoved() (major, minor int) {
+	return r.majorRemoved, r.minorRemoved
+}
+
+type lifecycledObject struct {
+	majorRemoved, minorRemoved, majorIntroduced, minorIntroduced int
+}
+
+func (r lifecycledObject) GetObjectKind() schema.ObjectKind {
+	panic("don't do this")
+}
+func (r lifecycledObject) DeepCopyObject() runtime.Object {
+	panic("don't do this either")
+}
+func (r lifecycledObject) APILifecycleRemoved() (major, minor int) {
+	return r.majorRemoved, r.minorRemoved
+}
+func (r lifecycledObject) APILifecycleIntroduced() (major, minor int) {
+	return r.majorIntroduced, r.minorIntroduced
 }
 
 func Test_resourceExpirationEvaluator_shouldServe(t *testing.T) {
@@ -147,8 +200,7 @@ func Test_resourceExpirationEvaluator_shouldServe(t *testing.T) {
 		{
 			name: "removed-in-curr",
 			resourceExpirationEvaluator: resourceExpirationEvaluator{
-				currentMajor: 1,
-				currentMinor: 20,
+				compatibilityVersion: semver.Version{Major: 1, Minor: 20},
 			},
 			restStorage: storageRemovedIn(1, 20),
 			expected:    false,
@@ -156,8 +208,7 @@ func Test_resourceExpirationEvaluator_shouldServe(t *testing.T) {
 		{
 			name: "removed-in-curr-but-deferred",
 			resourceExpirationEvaluator: resourceExpirationEvaluator{
-				currentMajor:                   1,
-				currentMinor:                   20,
+				compatibilityVersion:           semver.Version{Major: 1, Minor: 20},
 				serveRemovedAPIsOneMoreRelease: true,
 			},
 			restStorage: storageRemovedIn(1, 20),
@@ -166,9 +217,8 @@ func Test_resourceExpirationEvaluator_shouldServe(t *testing.T) {
 		{
 			name: "removed-in-curr-but-alpha",
 			resourceExpirationEvaluator: resourceExpirationEvaluator{
-				currentMajor: 1,
-				currentMinor: 20,
-				isAlpha:      true,
+				compatibilityVersion: semver.Version{Major: 1, Minor: 20},
+				isAlpha:              true,
 			},
 			restStorage: storageRemovedIn(1, 20),
 			expected:    true,
@@ -176,8 +226,7 @@ func Test_resourceExpirationEvaluator_shouldServe(t *testing.T) {
 		{
 			name: "removed-in-curr-but-alpha-but-strict",
 			resourceExpirationEvaluator: resourceExpirationEvaluator{
-				currentMajor:                 1,
-				currentMinor:                 20,
+				compatibilityVersion:         semver.Version{Major: 1, Minor: 20},
 				isAlpha:                      true,
 				strictRemovedHandlingInAlpha: true,
 			},
@@ -187,8 +236,7 @@ func Test_resourceExpirationEvaluator_shouldServe(t *testing.T) {
 		{
 			name: "removed-in-prev-deferral-does-not-help",
 			resourceExpirationEvaluator: resourceExpirationEvaluator{
-				currentMajor:                   1,
-				currentMinor:                   21,
+				compatibilityVersion:           semver.Version{Major: 1, Minor: 21},
 				serveRemovedAPIsOneMoreRelease: true,
 			},
 			restStorage: storageRemovedIn(1, 20),
@@ -197,8 +245,7 @@ func Test_resourceExpirationEvaluator_shouldServe(t *testing.T) {
 		{
 			name: "removed-in-prev-major",
 			resourceExpirationEvaluator: resourceExpirationEvaluator{
-				currentMajor:                   2,
-				currentMinor:                   20,
+				compatibilityVersion:           semver.Version{Major: 2, Minor: 20},
 				serveRemovedAPIsOneMoreRelease: true,
 			},
 			restStorage: storageRemovedIn(1, 20),
@@ -207,8 +254,7 @@ func Test_resourceExpirationEvaluator_shouldServe(t *testing.T) {
 		{
 			name: "removed-in-future",
 			resourceExpirationEvaluator: resourceExpirationEvaluator{
-				currentMajor: 1,
-				currentMinor: 20,
+				compatibilityVersion: semver.Version{Major: 1, Minor: 20},
 			},
 			restStorage: storageRemovedIn(1, 21),
 			expected:    true,
@@ -216,18 +262,73 @@ func Test_resourceExpirationEvaluator_shouldServe(t *testing.T) {
 		{
 			name: "never-removed",
 			resourceExpirationEvaluator: resourceExpirationEvaluator{
-				currentMajor: 1,
-				currentMinor: 20,
+				compatibilityVersion: semver.Version{Major: 1, Minor: 20},
 			},
 			restStorage: storageNeverRemoved(),
 			expected:    true,
+		},
+		{
+			name: "introduced-in-future-minor",
+			resourceExpirationEvaluator: resourceExpirationEvaluator{
+				compatibilityVersion: semver.Version{Major: 1, Minor: 20},
+			},
+			restStorage: storageIntroducedIn(1, 21),
+			expected:    false,
+		},
+		{
+			name: "introduced-in-future-major",
+			resourceExpirationEvaluator: resourceExpirationEvaluator{
+				compatibilityVersion: semver.Version{Major: 1, Minor: 20},
+			},
+			restStorage: storageIntroducedIn(2, 0),
+			expected:    false,
+		},
+		{
+			name: "introduced-in-current",
+			resourceExpirationEvaluator: resourceExpirationEvaluator{
+				compatibilityVersion: semver.Version{Major: 1, Minor: 20},
+			},
+			restStorage: storageIntroducedIn(1, 20),
+			expected:    true,
+		},
+		{
+			name: "introduced-in-prev-minor",
+			resourceExpirationEvaluator: resourceExpirationEvaluator{
+				compatibilityVersion: semver.Version{Major: 1, Minor: 20},
+			},
+			restStorage: storageIntroducedIn(1, 19),
+			expected:    true,
+		},
+		{
+			name: "introduced-in-prev-major",
+			resourceExpirationEvaluator: resourceExpirationEvaluator{
+				compatibilityVersion: semver.Version{Major: 1, Minor: 20},
+			},
+			restStorage: storageIntroducedIn(0, 36),
+			expected:    true,
+		},
+		{
+			name: "introduced-in-prev-removed-in-future",
+			resourceExpirationEvaluator: resourceExpirationEvaluator{
+				compatibilityVersion: semver.Version{Major: 1, Minor: 20},
+			},
+			restStorage: storageIntroducedInAndRemovedIn(1, 18, 1, 21),
+			expected:    true,
+		},
+		{
+			name: "introduced-in-prev-removed-in-prev",
+			resourceExpirationEvaluator: resourceExpirationEvaluator{
+				compatibilityVersion: semver.Version{Major: 1, Minor: 22},
+			},
+			restStorage: storageIntroducedInAndRemovedIn(1, 18, 1, 21),
+			expected:    false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gv := schema.GroupVersion{Group: "mygroup", Version: "myversion"}
 			convertor := &dummyConvertor{}
-			if actual := tt.resourceExpirationEvaluator.shouldServe(gv, convertor, tt.restStorage); actual != tt.expected {
+			if actual := tt.resourceExpirationEvaluator.shouldServe(gv, convertor, tt.restStorage, "myresource"); actual != tt.expected {
 				t.Errorf("shouldServe() = %v, want %v", actual, tt.expected)
 			}
 			if !reflect.DeepEqual(convertor.called, gv) {
@@ -269,8 +370,7 @@ func Test_removeDeletedKinds(t *testing.T) {
 		{
 			name: "remove-one-of-two",
 			resourceExpirationEvaluator: resourceExpirationEvaluator{
-				currentMajor: 1,
-				currentMinor: 20,
+				compatibilityVersion: semver.Version{Major: 1, Minor: 20},
 			},
 			versionedResourcesStorageMap: map[string]map[string]rest.Storage{
 				"v1": {
@@ -287,8 +387,7 @@ func Test_removeDeletedKinds(t *testing.T) {
 		{
 			name: "remove-nested-not-expired",
 			resourceExpirationEvaluator: resourceExpirationEvaluator{
-				currentMajor: 1,
-				currentMinor: 20,
+				compatibilityVersion: semver.Version{Major: 1, Minor: 20},
 			},
 			versionedResourcesStorageMap: map[string]map[string]rest.Storage{
 				"v1": {
@@ -306,8 +405,7 @@ func Test_removeDeletedKinds(t *testing.T) {
 		{
 			name: "remove-all-of-version",
 			resourceExpirationEvaluator: resourceExpirationEvaluator{
-				currentMajor: 1,
-				currentMinor: 20,
+				compatibilityVersion: semver.Version{Major: 1, Minor: 20},
 			},
 			versionedResourcesStorageMap: map[string]map[string]rest.Storage{
 				"v1": {
@@ -321,6 +419,23 @@ func Test_removeDeletedKinds(t *testing.T) {
 			expectedStorage: map[string]map[string]rest.Storage{
 				"v2": {
 					"twentyone": storageRemovedIn(1, 21),
+				},
+			},
+		},
+		{
+			name: "remove-one-introdued-in-future",
+			resourceExpirationEvaluator: resourceExpirationEvaluator{
+				compatibilityVersion: semver.Version{Major: 1, Minor: 20},
+			},
+			versionedResourcesStorageMap: map[string]map[string]rest.Storage{
+				"v1": {
+					"twenty":    storageIntroducedIn(1, 20),
+					"twentyone": storageIntroducedIn(1, 21),
+				},
+			},
+			expectedStorage: map[string]map[string]rest.Storage{
+				"v1": {
+					"twenty": storageIntroducedIn(1, 20),
 				},
 			},
 		},

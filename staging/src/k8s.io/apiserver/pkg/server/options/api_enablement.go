@@ -26,13 +26,17 @@ import (
 	"k8s.io/apiserver/pkg/server/resourceconfig"
 	serverstore "k8s.io/apiserver/pkg/server/storage"
 	cliflag "k8s.io/component-base/cli/flag"
+	"k8s.io/component-base/version"
 )
 
 // APIEnablementOptions contains the options for which resources to turn on and off.
 // Given small aggregated API servers, this option isn't required for "normal" API servers
 type APIEnablementOptions struct {
-	RuntimeConfig cliflag.ConfigurationMap
+	RuntimeConfig        cliflag.ConfigurationMap
+	CompatibilityVersion string
 }
+
+var DefaultCompatibilityVersion = version.Get().GitVersion
 
 func NewAPIEnablementOptions() *APIEnablementOptions {
 	return &APIEnablementOptions{
@@ -54,6 +58,8 @@ func (s *APIEnablementOptions) AddFlags(fs *pflag.FlagSet) {
 		"api/beta=true|false controls all API versions of the form v[0-9]+beta[0-9]+\n"+
 		"api/alpha=true|false controls all API versions of the form v[0-9]+alpha[0-9]+\n"+
 		"api/legacy is deprecated, and will be removed in a future version")
+	fs.StringVar(&s.CompatibilityVersion, "compatibility-version", DefaultCompatibilityVersion,
+		"Compatibility version for the apis.")
 }
 
 // Validate validates RuntimeConfig with a list of registries.
@@ -93,8 +99,10 @@ func (s *APIEnablementOptions) ApplyTo(c *server.Config, defaultResourceConfig *
 	if s == nil {
 		return nil
 	}
-
+	fmt.Printf("sizhangDebug: APIEnablementOptions.ApplyTo defaultResourceConfig.GroupVersionConfigs = %v\n", defaultResourceConfig.GetGroupVersionConfigs())
 	mergedResourceConfig, err := resourceconfig.MergeAPIResourceConfigs(defaultResourceConfig, s.RuntimeConfig, registry)
+	fmt.Printf("sizhangDebug: APIEnablementOptions.ApplyTo RuntimeConfig = %s\n", s.RuntimeConfig.String())
+	fmt.Printf("sizhangDebug: APIEnablementOptions.ApplyTo mergedResourceConfig.GroupVersionConfigs = %v\n", mergedResourceConfig.GetGroupVersionConfigs())
 	c.MergedResourceConfig = mergedResourceConfig
 
 	return err

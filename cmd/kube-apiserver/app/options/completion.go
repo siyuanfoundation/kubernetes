@@ -88,6 +88,10 @@ func (opts *ServerRunOptions) Complete() (CompletedOptions, error) {
 		}
 	}
 
+	if completed.APIEnablement.CompatibilityVersion == "" {
+		completed.APIEnablement.CompatibilityVersion = apiserveroptions.DefaultCompatibilityVersion
+	}
+
 	return CompletedOptions{
 		completedOptions: &completed,
 	}, nil

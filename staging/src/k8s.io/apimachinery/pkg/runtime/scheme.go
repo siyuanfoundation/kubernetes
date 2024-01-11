@@ -18,14 +18,17 @@ package runtime
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 
+	"github.com/blang/semver/v4"
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/naming"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/component-base/version"
 )
 
 // Scheme defines methods for serializing and deserializing API objects, a type
@@ -82,6 +85,11 @@ type Scheme struct {
 	// schemeName is the name of this scheme.  If you don't specify a name, the stack of the NewScheme caller will be used.
 	// This is useful for error reporting to indicate the origin of the scheme.
 	schemeName string
+
+	// gvToVersionIntroduced maps GroupVersion to the binary version it is introduced.
+	gvToVersionIntroduced map[schema.GroupVersion]semver.Version
+	// gvToVersionRemoved maps GroupVersion to the binary version it is removed.
+	gvToVersionRemoved map[schema.GroupVersion]semver.Version
 }
 
 // FieldLabelConversionFunc converts a field selector to internal representation.
@@ -98,6 +106,8 @@ func NewScheme() *Scheme {
 		defaulterFuncs:            map[reflect.Type]func(interface{}){},
 		versionPriority:           map[string][]string{},
 		schemeName:                naming.GetNameFromCallsite(internalPackages...),
+		gvToVersionIntroduced:     map[schema.GroupVersion]semver.Version{},
+		gvToVersionRemoved:        map[schema.GroupVersion]semver.Version{},
 	}
 	s.converter = conversion.NewConverter(nil)
 
@@ -695,6 +705,30 @@ func (s *Scheme) addObservedVersion(version schema.GroupVersion) {
 	}
 
 	s.observedVersions = append(s.observedVersions, version)
+}
+
+// SetVersionIntroduced sets the binary version when the GroupVersion is introduced.
+func (s *Scheme) SetVersionIntroduced(gv schema.GroupVersion, ver string) {
+	s.gvToVersionIntroduced[gv] = version.MustParseVersion(ver)
+}
+
+// VersionIntroduced returns the binary version when the GroupVersion is introduced.
+func (s *Scheme) VersionIntroduced(gv schema.GroupVersion) semver.Version {
+	return s.gvToVersionIntroduced[gv]
+}
+
+// SetVersionRemoved sets the binary version when the GroupVersion is removed.
+func (s *Scheme) SetVersionRemoved(gv schema.GroupVersion, ver string) {
+	s.gvToVersionRemoved[gv] = version.MustParseVersion(ver)
+}
+
+// VersionRemoved returns the binary version when the GroupVersion is removed.
+func (s *Scheme) VersionRemoved(gv schema.GroupVersion) semver.Version {
+	ver, ok := s.gvToVersionRemoved[gv]
+	if ok {
+		return ver
+	}
+	return semver.Version{Major: math.MaxUint64, Minor: math.MaxUint64}
 }
 
 func (s *Scheme) Name() string {

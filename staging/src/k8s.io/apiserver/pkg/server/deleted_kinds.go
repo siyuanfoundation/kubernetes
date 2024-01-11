@@ -17,24 +17,25 @@ limitations under the License.
 package server
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
 
+	"github.com/blang/semver/v4"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
-	apimachineryversion "k8s.io/apimachinery/pkg/version"
 	"k8s.io/apiserver/pkg/registry/rest"
+	"k8s.io/component-base/version"
 	"k8s.io/klog/v2"
 )
 
 // resourceExpirationEvaluator holds info for deciding if a particular rest.Storage needs to excluded from the API
 type resourceExpirationEvaluator struct {
-	currentMajor int
-	currentMinor int
-	isAlpha      bool
+	compatibilityVersion semver.Version
+	isAlpha              bool
 	// This is usually set for testing for which tests need to be removed.  This prevent insta-failing CI.
 	// Set KUBE_APISERVER_STRICT_REMOVED_API_HANDLING_IN_ALPHA to see what will be removed when we tag beta
 	strictRemovedHandlingInAlpha bool
@@ -53,30 +54,17 @@ type ResourceExpirationEvaluator interface {
 	ShouldServeForVersion(majorRemoved, minorRemoved int) bool
 }
 
-func NewResourceExpirationEvaluator(currentVersion apimachineryversion.Info) (ResourceExpirationEvaluator, error) {
+func NewResourceExpirationEvaluator(compatibilityGitVersion string) (ResourceExpirationEvaluator, error) {
 	ret := &resourceExpirationEvaluator{
 		strictRemovedHandlingInAlpha: false,
 	}
-	if len(currentVersion.Major) > 0 {
-		currentMajor64, err := strconv.ParseInt(currentVersion.Major, 10, 32)
-		if err != nil {
-			return nil, err
-		}
-		ret.currentMajor = int(currentMajor64)
+	klog.V(1).Infof("NewResourceExpirationEvaluator with compatibilityGitVersion = %s.", compatibilityGitVersion)
+	if ver, err := version.ParseVersion(compatibilityGitVersion); err != nil {
+		return nil, err
+	} else {
+		ret.compatibilityVersion = ver
 	}
-	if len(currentVersion.Minor) > 0 {
-		// split the "normal" + and - for semver stuff
-		minorString := strings.Split(currentVersion.Minor, "+")[0]
-		minorString = strings.Split(minorString, "-")[0]
-		minorString = strings.Split(minorString, ".")[0]
-		currentMinor64, err := strconv.ParseInt(minorString, 10, 32)
-		if err != nil {
-			return nil, err
-		}
-		ret.currentMinor = int(currentMinor64)
-	}
-
-	ret.isAlpha = strings.Contains(currentVersion.GitVersion, "alpha")
+	ret.isAlpha = strings.Contains(compatibilityGitVersion, "alpha")
 
 	if envString, ok := os.LookupEnv("KUBE_APISERVER_STRICT_REMOVED_API_HANDLING_IN_ALPHA"); !ok {
 		// do nothing
@@ -97,7 +85,7 @@ func NewResourceExpirationEvaluator(currentVersion apimachineryversion.Info) (Re
 	return ret, nil
 }
 
-func (e *resourceExpirationEvaluator) shouldServe(gv schema.GroupVersion, versioner runtime.ObjectVersioner, resourceServingInfo rest.Storage) bool {
+func (e *resourceExpirationEvaluator) shouldServe(gv schema.GroupVersion, versioner runtime.ObjectVersioner, resourceServingInfo rest.Storage, resourceName string) bool {
 	internalPtr := resourceServingInfo.New()
 
 	target := gv
@@ -112,25 +100,46 @@ func (e *resourceExpirationEvaluator) shouldServe(gv schema.GroupVersion, versio
 		return false
 	}
 
+	if !e.shouldServeForIntroduced(versionedPtr, gv.WithResource(resourceName)) {
+		return false
+	}
+
 	removed, ok := versionedPtr.(removedInterface)
 	if !ok {
 		return true
 	}
 	majorRemoved, minorRemoved := removed.APILifecycleRemoved()
+	fmt.Printf("sizhangDebug: resource %s/%s removed at %d.%d\n",
+		gv.String(), resourceName, majorRemoved, minorRemoved)
 	return e.ShouldServeForVersion(majorRemoved, minorRemoved)
 }
 
-func (e *resourceExpirationEvaluator) ShouldServeForVersion(majorRemoved, minorRemoved int) bool {
-	if e.currentMajor < majorRemoved {
+// shouldServeForIntroduced evalues if the resource should be served based on APILifecycleIntroduced.
+// It could return false if an api is introduced at some binary version while the compatibility version is still old.
+func (e *resourceExpirationEvaluator) shouldServeForIntroduced(obj runtime.Object, gvs schema.GroupVersionResource) bool {
+	introduced, ok := obj.(introducedInterface)
+	if !ok {
 		return true
 	}
-	if e.currentMajor > majorRemoved {
+	majorIntroduced, minorIntroduced := introduced.APILifecycleIntroduced()
+	fmt.Printf("sizhangDebug: resource %s introduced at %d.%d\n", gvs.String(), majorIntroduced, minorIntroduced)
+	introducedVersion := semver.Version{Major: uint64(majorIntroduced), Minor: uint64(minorIntroduced)}
+	if isNonDefaultVersion(e.compatibilityVersion) && introducedVersion.GT(e.compatibilityVersion) {
+		fmt.Printf("sizhangDebug: resource %s introduced at %d.%d, later than compatibilityVersion %v\n",
+			gvs.String(), majorIntroduced, minorIntroduced, e.compatibilityVersion)
 		return false
 	}
-	if e.currentMinor < minorRemoved {
+	return true
+}
+
+// ShouldServeForVersion evalues if the resource should be served based on the version it is removed.
+// It could return false if compatibility version is newer than the version the api is removed.
+func (e *resourceExpirationEvaluator) ShouldServeForVersion(majorRemoved, minorRemoved int) bool {
+	removedVersion := semver.Version{Major: uint64(majorRemoved), Minor: uint64(minorRemoved)}
+	if e.compatibilityVersion.LT(removedVersion) {
 		return true
 	}
-	if e.currentMinor > minorRemoved {
+	if e.compatibilityVersion.GT(removedVersion) {
 		return false
 	}
 	// at this point major and minor are equal, so this API should be removed when the current release GAs.
@@ -152,6 +161,10 @@ type removedInterface interface {
 	APILifecycleRemoved() (major, minor int)
 }
 
+type introducedInterface interface {
+	APILifecycleIntroduced() (major, minor int)
+}
+
 // removeDeletedKinds inspects the storage map and modifies it in place by removing storage for kinds that have been deleted.
 // versionedResourcesStorageMap mirrors the field on APIGroupInfo, it's a map from version to resource to the storage.
 func (e *resourceExpirationEvaluator) RemoveDeletedKinds(groupName string, versioner runtime.ObjectVersioner, versionedResourcesStorageMap map[string]map[string]rest.Storage) {
@@ -160,8 +173,11 @@ func (e *resourceExpirationEvaluator) RemoveDeletedKinds(groupName string, versi
 		versionToResource := versionedResourcesStorageMap[apiVersion]
 		resourcesToRemove := sets.NewString()
 		for resourceName, resourceServingInfo := range versionToResource {
-			if !e.shouldServe(schema.GroupVersion{Group: groupName, Version: apiVersion}, versioner, resourceServingInfo) {
+			if !e.shouldServe(schema.GroupVersion{Group: groupName, Version: apiVersion}, versioner, resourceServingInfo, resourceName) {
+				fmt.Printf("sizhangDebug: should not serve %s/%s/%s\n", groupName, apiVersion, resourceName)
 				resourcesToRemove.Insert(resourceName)
+			} else {
+				fmt.Printf("sizhangDebug: should serve %s/%s/%s\n", groupName, apiVersion, resourceName)
 			}
 		}
 
@@ -198,4 +214,8 @@ func shouldRemoveResourceAndSubresources(resourcesToRemove sets.String, resource
 		}
 	}
 	return false
+}
+
+func isNonDefaultVersion(ver semver.Version) bool {
+	return ver.Major > 0 || ver.Minor > 0
 }

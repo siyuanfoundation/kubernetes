@@ -102,7 +102,7 @@ func createAggregatorConfig(
 	// override MergedResourceConfig with aggregator defaults and registry
 	if err := commandOptions.APIEnablement.ApplyTo(
 		&genericConfig,
-		aggregatorapiserver.DefaultAPIResourceConfigSource(),
+		aggregatorapiserver.DefaultAPIResourceConfigSource(genericConfig.CompatibilityVersion, aggregatorscheme.Scheme),
 		aggregatorscheme.Scheme); err != nil {
 		return nil, err
 	}

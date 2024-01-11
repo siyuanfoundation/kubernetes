@@ -54,5 +54,7 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&PriorityLevelConfigurationList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
+	scheme.SetVersionIntroduced(SchemeGroupVersion, "1.26")
+	scheme.SetVersionRemoved(SchemeGroupVersion, "1.32")
 	return nil
 }

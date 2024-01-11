@@ -246,8 +246,12 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		rejectForwardingRedirects:  c.ExtraConfig.RejectForwardingRedirects,
 	}
 
+	compatibilityVersion := c.GenericConfig.CompatibilityVersion
+	if len(compatibilityVersion) == 0 {
+		compatibilityVersion = c.GenericConfig.Version.GitVersion
+	}
 	// used later  to filter the served resource by those that have expired.
-	resourceExpirationEvaluator, err := genericapiserver.NewResourceExpirationEvaluator(*c.GenericConfig.Version)
+	resourceExpirationEvaluator, err := genericapiserver.NewResourceExpirationEvaluator(compatibilityVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -586,8 +590,8 @@ func (s *APIAggregator) RemoveAPIService(apiServiceName string) {
 }
 
 // DefaultAPIResourceConfigSource returns default configuration for an APIResource.
-func DefaultAPIResourceConfigSource() *serverstorage.ResourceConfig {
-	ret := serverstorage.NewResourceConfig()
+func DefaultAPIResourceConfigSource(compatibilityVersion string, registry serverstorage.GroupVersionRegistry) *serverstorage.ResourceConfig {
+	ret := serverstorage.NewResourceConfig(compatibilityVersion, registry)
 	// NOTE: GroupVersions listed here will be enabled by default. Don't put alpha versions in the list.
 	ret.EnableVersions(
 		v1.SchemeGroupVersion,

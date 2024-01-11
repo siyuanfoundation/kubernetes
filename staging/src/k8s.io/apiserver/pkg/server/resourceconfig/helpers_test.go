@@ -548,7 +548,7 @@ func TestParseRuntimeConfig(t *testing.T) {
 }
 
 func newFakeAPIResourceConfigSource() *serverstore.ResourceConfig {
-	ret := serverstore.NewResourceConfig()
+	ret := serverstore.NewResourceConfig("", nil)
 	// NOTE: GroupVersions listed here will be enabled by default. Don't put alpha versions in the list.
 	ret.EnableVersions(
 		apiv1.SchemeGroupVersion,

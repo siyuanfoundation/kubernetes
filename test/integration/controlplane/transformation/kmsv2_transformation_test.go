@@ -1188,9 +1188,9 @@ func getRESTOptionsGetterForSecrets(t testing.TB, test *transformTest) generic.R
 
 	genericConfig := genericapiserver.NewConfig(legacyscheme.Codecs)
 
-	genericConfig.MergedResourceConfig = controlplane.DefaultAPIResourceConfigSource()
+	genericConfig.MergedResourceConfig = controlplane.DefaultAPIResourceConfigSource("", nil)
 
-	if err := s.APIEnablement.ApplyTo(genericConfig, controlplane.DefaultAPIResourceConfigSource(), legacyscheme.Scheme); err != nil {
+	if err := s.APIEnablement.ApplyTo(genericConfig, controlplane.DefaultAPIResourceConfigSource("", nil), legacyscheme.Scheme); err != nil {
 		t.Fatal(err)
 	}
 

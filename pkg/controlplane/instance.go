@@ -676,7 +676,7 @@ func (m *Instance) InstallAPIs(apiResourceConfigSource serverstorage.APIResource
 	nonLegacy := []*genericapiserver.APIGroupInfo{}
 
 	// used later in the loop to filter the served resource by those that have expired.
-	resourceExpirationEvaluator, err := genericapiserver.NewResourceExpirationEvaluator(*m.GenericAPIServer.Version)
+	resourceExpirationEvaluator, err := genericapiserver.NewResourceExpirationEvaluator(m.GenericAPIServer.CompatibilityVersion)
 	if err != nil {
 		return err
 	}
@@ -785,8 +785,8 @@ var (
 )
 
 // DefaultAPIResourceConfigSource returns default configuration for an APIResource.
-func DefaultAPIResourceConfigSource() *serverstorage.ResourceConfig {
-	ret := serverstorage.NewResourceConfig()
+func DefaultAPIResourceConfigSource(compatibilityVersion string, registry serverstorage.GroupVersionRegistry) *serverstorage.ResourceConfig {
+	ret := serverstorage.NewResourceConfig(compatibilityVersion, registry)
 	// NOTE: GroupVersions listed here will be enabled by default. Don't put alpha or beta versions in the list.
 	ret.EnableVersions(stableAPIGroupVersionsEnabledByDefault...)
 
@@ -796,6 +796,8 @@ func DefaultAPIResourceConfigSource() *serverstorage.ResourceConfig {
 
 	// enable the legacy beta resources that were present before stopped serving new beta APIs by default.
 	ret.EnableResources(legacyBetaEnabledByDefaultResources...)
+
+	fmt.Printf("sizhangDebug: DefaultAPIResourceConfigSource.GroupVersionConfigs = %v\n", ret.GroupVersionConfigs)
 
 	return ret
 }

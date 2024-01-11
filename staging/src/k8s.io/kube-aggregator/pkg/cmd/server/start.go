@@ -125,7 +125,7 @@ func (o AggregatorOptions) RunAggregator(stopCh <-chan struct{}) error {
 		return fmt.Errorf("error creating self-signed certificates: %v", err)
 	}
 
-	serverConfig := genericapiserver.NewRecommendedConfig(aggregatorscheme.Codecs)
+	serverConfig := genericapiserver.NewRecommendedConfig(aggregatorscheme.Codecs, o.APIEnablement.CompatibilityVersion)
 
 	if err := o.ServerRunOptions.ApplyTo(&serverConfig.Config); err != nil {
 		return err
@@ -133,7 +133,7 @@ func (o AggregatorOptions) RunAggregator(stopCh <-chan struct{}) error {
 	if err := o.RecommendedOptions.ApplyTo(serverConfig); err != nil {
 		return err
 	}
-	if err := o.APIEnablement.ApplyTo(&serverConfig.Config, apiserver.DefaultAPIResourceConfigSource(), aggregatorscheme.Scheme); err != nil {
+	if err := o.APIEnablement.ApplyTo(&serverConfig.Config, apiserver.DefaultAPIResourceConfigSource(serverConfig.CompatibilityVersion, aggregatorscheme.Scheme), aggregatorscheme.Scheme); err != nil {
 		return err
 	}
 	serverConfig.LongRunningFunc = filters.BasicLongRunningRequestCheck(

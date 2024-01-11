@@ -58,6 +58,7 @@ const PostStartHookName = "priority-and-fairness-config-producer"
 // NewRESTStorage creates a new rest storage for flow-control api models.
 func (p RESTStorageProvider) NewRESTStorage(apiResourceConfigSource serverstorage.APIResourceConfigSource, restOptionsGetter generic.RESTOptionsGetter) (genericapiserver.APIGroupInfo, error) {
 	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(flowcontrol.GroupName, legacyscheme.Scheme, legacyscheme.ParameterCodec, legacyscheme.Codecs)
+	fmt.Printf("sizhangFlowSchema: GroupVersionConfigs() = %v\n", apiResourceConfigSource.GetGroupVersionConfigs())
 
 	if storageMap, err := p.storage(apiResourceConfigSource, restOptionsGetter, flowcontrolapisv1beta1.SchemeGroupVersion); err != nil {
 		return genericapiserver.APIGroupInfo{}, err
@@ -91,12 +92,15 @@ func (p RESTStorageProvider) storage(apiResourceConfigSource serverstorage.APIRe
 
 	// flow-schema
 	if resource := "flowschemas"; apiResourceConfigSource.ResourceEnabled(groupVersion.WithResource(resource)) {
+		fmt.Printf("sizhangFlowSchema: resource %s/%s enabled\n", groupVersion.String(), resource)
 		flowSchemaStorage, flowSchemaStatusStorage, err := flowschemastore.NewREST(restOptionsGetter)
 		if err != nil {
 			return nil, err
 		}
 		storage[resource] = flowSchemaStorage
 		storage[resource+"/status"] = flowSchemaStatusStorage
+	} else {
+		fmt.Printf("sizhangFlowSchema: resource %s/%s disabled\n", groupVersion.String(), resource)
 	}
 
 	// priority-level-configuration

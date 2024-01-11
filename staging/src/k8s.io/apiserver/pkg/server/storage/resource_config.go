@@ -17,24 +17,44 @@ limitations under the License.
 package storage
 
 import (
+	"fmt"
+
+	"github.com/blang/semver/v4"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/component-base/version"
 )
 
 // APIResourceConfigSource is the interface to determine which groups and versions are enabled
 type APIResourceConfigSource interface {
 	ResourceEnabled(resource schema.GroupVersionResource) bool
 	AnyResourceForGroupEnabled(group string) bool
+	GetGroupVersionConfigs() map[schema.GroupVersion]bool
+}
+
+// GroupVersionRegistry provides access to registered group versions.
+type GroupVersionRegistry interface {
+	// VersionIntroduced returns the binary version when the GroupVersion is introduced.
+	VersionIntroduced(gv schema.GroupVersion) semver.Version
+	// VersionRemoved returns the binary version when the GroupVersion is removed.
+	VersionRemoved(gv schema.GroupVersion) semver.Version
 }
 
 var _ APIResourceConfigSource = &ResourceConfig{}
 
 type ResourceConfig struct {
-	GroupVersionConfigs map[schema.GroupVersion]bool
-	ResourceConfigs     map[schema.GroupVersionResource]bool
+	GroupVersionConfigs  map[schema.GroupVersion]bool
+	ResourceConfigs      map[schema.GroupVersionResource]bool
+	compatibilityVersion semver.Version
+	registry             GroupVersionRegistry
 }
 
-func NewResourceConfig() *ResourceConfig {
-	return &ResourceConfig{GroupVersionConfigs: map[schema.GroupVersion]bool{}, ResourceConfigs: map[schema.GroupVersionResource]bool{}}
+func NewResourceConfig(compatibilityVersion string, registry GroupVersionRegistry) *ResourceConfig {
+	if compatibilityVersion == "" {
+		compatibilityVersion = version.Get().GitVersion
+	}
+	ver := version.MustParseVersion(compatibilityVersion)
+	return &ResourceConfig{GroupVersionConfigs: map[schema.GroupVersion]bool{}, ResourceConfigs: map[schema.GroupVersionResource]bool{},
+		compatibilityVersion: ver, registry: registry}
 }
 
 // DisableMatchingVersions disables all group/versions for which the matcher function returns true.
@@ -52,7 +72,7 @@ func (o *ResourceConfig) DisableMatchingVersions(matcher func(gv schema.GroupVer
 // This will remove any preferences previously set on individual resources.
 func (o *ResourceConfig) EnableMatchingVersions(matcher func(gv schema.GroupVersion) bool) {
 	for version := range o.GroupVersionConfigs {
-		if matcher(version) {
+		if matcher(version) && o.versionAvailable(version) {
 			o.GroupVersionConfigs[version] = true
 			o.removeMatchingResourcePreferences(resourceMatcherForVersion(version))
 		}
@@ -86,6 +106,8 @@ func (o *ResourceConfig) DisableVersions(versions ...schema.GroupVersion) {
 	for _, version := range versions {
 		o.GroupVersionConfigs[version] = false
 
+		fmt.Printf("sizhangDebug: DisableVersion: %s\n", version.String())
+
 		// a preference about a version takes priority over the previously set resources
 		o.removeMatchingResourcePreferences(resourceMatcherForVersion(version))
 	}
@@ -95,8 +117,13 @@ func (o *ResourceConfig) DisableVersions(versions ...schema.GroupVersion) {
 // This will remove any preferences previously set on individual resources.
 func (o *ResourceConfig) EnableVersions(versions ...schema.GroupVersion) {
 	for _, version := range versions {
-		o.GroupVersionConfigs[version] = true
-
+		if o.versionAvailable(version) {
+			o.GroupVersionConfigs[version] = true
+		} else {
+			o.GroupVersionConfigs[version] = false
+			// TODO: log warning of resource not available.
+			fmt.Printf("sizhangDebug: version %s cannot be enabled due to lifecyle\n", version.String())
+		}
 		// a preference about a version takes priority over the previously set resources
 		o.removeMatchingResourcePreferences(resourceMatcherForVersion(version))
 	}
@@ -109,6 +136,35 @@ func (o *ResourceConfig) versionEnabled(version schema.GroupVersion) bool {
 	return enabled
 }
 
+func (o *ResourceConfig) GetGroupVersionConfigs() map[schema.GroupVersion]bool {
+	return o.GroupVersionConfigs
+}
+
+// versionAvailable checks if a GroupVersion is available based on its VersionIntroduced and VersionRemoved.
+func (o *ResourceConfig) versionAvailable(version schema.GroupVersion) bool {
+	if o.registry == nil {
+		return true
+	}
+	// compatibilityVersion is not set.
+	if o.compatibilityVersion.Major == 0 && o.compatibilityVersion.Minor == 0 {
+		return true
+	}
+	// GroupVersion is introduced after the compatibilityVersion.
+	if o.compatibilityVersion.LT(o.registry.VersionIntroduced(version)) {
+		return false
+	}
+	// GroupVersion is removed before the compatibilityVersion.
+	if o.compatibilityVersion.GT(o.registry.VersionRemoved(version)) {
+		return false
+	}
+	// TODO: handle remove when version equal like ShouldServeForVersion.
+	return true
+}
+
+func (o *ResourceConfig) resourceAvailable(resource schema.GroupVersionResource) bool {
+	return o.versionAvailable(resource.GroupVersion())
+}
+
 func (o *ResourceConfig) DisableResources(resources ...schema.GroupVersionResource) {
 	for _, resource := range resources {
 		o.ResourceConfigs[resource] = false
@@ -117,7 +173,12 @@ func (o *ResourceConfig) DisableResources(resources ...schema.GroupVersionResour
 
 func (o *ResourceConfig) EnableResources(resources ...schema.GroupVersionResource) {
 	for _, resource := range resources {
-		o.ResourceConfigs[resource] = true
+		if o.resourceAvailable(resource) {
+			o.ResourceConfigs[resource] = true
+		} else {
+			// TODO: log warning of resource not available.
+			fmt.Printf("sizhangDebug: resource %s cannot be enabled due to lifecyle\n", resource.String())
+		}
 	}
 }
 
@@ -125,13 +186,22 @@ func (o *ResourceConfig) ResourceEnabled(resource schema.GroupVersionResource) b
 	// if a resource is explicitly set, that takes priority over the preference of the version.
 	resourceEnabled, explicitlySet := o.ResourceConfigs[resource]
 	if explicitlySet {
+		if resource.Resource == "flowschemas" {
+			fmt.Printf("sizhangFlowSchema: %s explicitlySet to %v\n", resource.String(), resourceEnabled)
+		}
 		return resourceEnabled
 	}
 
 	if !o.versionEnabled(resource.GroupVersion()) {
+		if resource.Resource == "flowschemas" {
+			fmt.Printf("sizhangFlowSchema: %s disabled, GroupVersionConfigs = %v\n", resource.String(), o.GroupVersionConfigs)
+		}
 		return false
 	}
 	// they are enabled by default.
+	if resource.Resource == "flowschemas" {
+		fmt.Printf("sizhangFlowSchema: %s enabled, GroupVersionConfigs = %v\n", resource.String(), o.GroupVersionConfigs)
+	}
 	return true
 }
 
