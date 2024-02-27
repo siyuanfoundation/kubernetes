@@ -19,7 +19,6 @@ package features
 import (
 	apiextensionsfeatures "k8s.io/apiextensions-apiserver/pkg/features"
 	"k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/version"
 	genericfeatures "k8s.io/apiserver/pkg/features"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	clientfeatures "k8s.io/client-go/features"
@@ -939,9 +938,10 @@ func init() {
 // Entries are separated from each other with blank lines to avoid sweeping gofmt changes
 // when adding or removing one entry.
 var defaultVersionedKubernetesFeatureGates = map[featuregate.Feature]featuregate.VersionedSpecs{
-	genericfeatures.EmulationVersion: {
-		{Version: version.MustParse("1.30"), Default: false, PreRelease: featuregate.Alpha},
-	},
+	// Example:
+	// genericfeatures.EmulationVersion: {
+	// 	{Version: version.MustParse("1.30"), Default: false, PreRelease: featuregate.Alpha},
+	// },
 }
 
 // defaultKubernetesFeatureGates consists of all known Kubernetes-specific feature keys.
@@ -1207,6 +1207,8 @@ var defaultKubernetesFeatureGates = map[featuregate.Feature]featuregate.FeatureS
 	genericfeatures.CustomResourceValidationExpressions: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.31
 
 	genericfeatures.EfficientWatchResumption: {Default: true, PreRelease: featuregate.GA, LockToDefault: true},
+
+	genericfeatures.EmulationVersion: {Default: false, PreRelease: featuregate.Alpha},
 
 	genericfeatures.KMSv1: {Default: false, PreRelease: featuregate.Deprecated},
 
