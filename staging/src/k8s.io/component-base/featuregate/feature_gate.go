@@ -182,6 +182,8 @@ type MutableVersionedFeatureGateForTests interface {
 	MutableVersionedFeatureGate
 	// Reset sets the enabled and enabledRaw to empty.
 	Reset()
+	// ForceSet sets the feature to value regardless of its default/lock state.
+	ForceSet(feature Feature, value bool) error
 }
 
 // featureGate implements FeatureGate as well as pflag.Value for flag parsing.
@@ -651,4 +653,18 @@ func (f *featureGate) Reset() {
 	enabledRaw := map[string]bool{}
 	f.enabled.Store(enabled)
 	f.enabledRaw.Store(enabledRaw)
+}
+
+func (f *featureGate) ForceSet(feature Feature, value bool) error {
+	if _, ok := f.known.Load().(map[Feature]VersionedSpecs)[feature]; !ok {
+		return fmt.Errorf("feature %q is not registered in FeatureGate %q", feature, f.featureGateName)
+	}
+	// Copy existing state
+	enabled := map[Feature]bool{}
+	for k, v := range f.enabled.Load().(map[Feature]bool) {
+		enabled[k] = v
+	}
+	enabled[feature] = value
+	f.enabled.Store(enabled)
+	return nil
 }

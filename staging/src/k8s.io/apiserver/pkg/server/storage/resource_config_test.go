@@ -17,8 +17,10 @@ limitations under the License.
 package storage
 
 import (
+	"slices"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/version"
@@ -184,7 +186,6 @@ func TestAnyVersionForGroupEnabled(t *testing.T) {
 }
 
 func TestEnabledVersionWithEmulationVersionOff(t *testing.T) {
-	t.Cleanup(utilversion.Effective.SetBinaryVersionForTests(version.MustParse("v1.30.0")))
 	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.EmulationVersion, false)()
 	g1v1 := schema.GroupVersion{Group: "group1", Version: "version1"}
 	g1v2 := schema.GroupVersion{Group: "group1", Version: "version2"}
@@ -228,7 +229,6 @@ func TestEnabledVersionWithEmulationVersionOff(t *testing.T) {
 }
 
 func TestEnabledVersionWithEmulationVersion(t *testing.T) {
-	t.Cleanup(utilversion.Effective.SetBinaryVersionForTests(version.MustParse("v1.31.0")))
 	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.EmulationVersion, true)()
 	g1v1 := schema.GroupVersion{Group: "group1", Version: "version1"}
 	g1v2 := schema.GroupVersion{Group: "group1", Version: "version2"}
@@ -326,7 +326,6 @@ func TestApiAvailable(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Cleanup(utilversion.Effective.SetBinaryVersionForTests(version.MustParse("v1.30.0")))
 			defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.EmulationVersion, true)()
 			config := ResourceConfig{emulationVersion: tc.emulationVersion}
 			available, _ := config.apiAvailable(schema.APILifecycle{IntroducedVersion: tc.introducedVersion, RemovedVersion: tc.removedVersion})
@@ -408,7 +407,6 @@ func TestEnabledResourceWithEmulationVersion(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Cleanup(utilversion.Effective.SetBinaryVersionForTests(version.MustParse("v1.31.0")))
 			defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.EmulationVersion, true)()
 			scheme := runtime.NewScheme()
 			utilversion.Effective.Set(version.MustParse("v1.31.0"), version.MustParse("v1.30.2"), version.MustParse("v1.30.0"))
@@ -436,6 +434,178 @@ func TestEnabledResourceWithEmulationVersion(t *testing.T) {
 			}
 			if e, a := tc.expectedResult, config.ResourceEnabled(r); e != a {
 				t.Errorf("expected %v, got %v", e, a)
+			}
+		})
+	}
+}
+
+func TestStorageVersionEmulation(t *testing.T) {
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.EmulationVersion, true)()
+
+	type versionInfo struct {
+		version    string
+		introduced *version.Version
+		removed    *version.Version
+	}
+
+	testCases := []struct {
+		name                    string
+		emulationVersion        *version.Version
+		minCompatibilityVersion *version.Version
+		resources               []versionInfo
+		groups                  []versionInfo
+		expectedStorageVersion  string
+		expectedError           string
+	}{
+		{
+			name:                    "emulation version is less than introduced group version",
+			emulationVersion:        version.MustParse("1.28.0"),
+			minCompatibilityVersion: version.MustParse("1.28.0"),
+			resources: []versionInfo{
+				{"v1", version.MustParse("1.28.0"), nil},
+			},
+			groups: []versionInfo{
+				{"v1", version.MustParse("1.29.0"), version.MustParse("1.30.0")},
+			},
+			expectedError: "resource not codable by both emulation version and min compatibility version",
+		},
+		{
+			name:                    "emulation version is greater than removed group version",
+			emulationVersion:        version.MustParse("1.30.0"),
+			minCompatibilityVersion: version.MustParse("1.28.0"),
+			resources: []versionInfo{
+				{"v1", version.MustParse("1.28.0"), version.MustParse("1.30.0")},
+			},
+			groups: []versionInfo{
+				{"v1", version.MustParse("1.29.0"), version.MustParse("1.30.0")},
+			},
+			expectedError: "resource not codable by both emulation version and min compatibility version",
+		},
+		{
+			name:                    "emulation version is equal to introduced group version",
+			emulationVersion:        version.MustParse("1.29.0"),
+			minCompatibilityVersion: version.MustParse("1.29.0"),
+			resources: []versionInfo{
+				{"v1", version.MustParse("1.29.0"), nil},
+			},
+			groups: []versionInfo{
+				{"v1", version.MustParse("1.29.0"), nil},
+			},
+			expectedStorageVersion: "v1",
+		},
+		{
+			name:                    "groupVersions added but not exposed",
+			emulationVersion:        version.MustParse("1.29.0"),
+			minCompatibilityVersion: version.MustParse("1.28.0"),
+			resources: []versionInfo{
+				{"v1", version.MustParse("1.26.0"), nil},
+				{"v2", version.MustParse("1.29.0"), nil},
+			},
+			groups: []versionInfo{
+				{"v1", version.MustParse("1.26.0"), nil},
+				{"v2", version.MustParse("1.29.0"), nil},
+			},
+			expectedStorageVersion: "v1",
+		},
+		{
+			name:                    "GA after mincompatibility version",
+			emulationVersion:        version.MustParse("1.30.0"),
+			minCompatibilityVersion: version.MustParse("1.29.0"),
+			resources: []versionInfo{
+				{"v1alpha1", version.MustParse("1.26.0"), version.MustParse("1.28.0")},
+				{"v1beta1", version.MustParse("1.27.0"), nil},
+				{"v1", version.MustParse("1.30.0"), nil},
+			},
+			groups: []versionInfo{
+				{"v1alpha1", version.MustParse("1.25.0"), version.MustParse("1.26.0")},
+				{"v1beta1", version.MustParse("1.26.0"), nil},
+				{"v1", version.MustParse("1.25.0"), nil},
+			},
+			expectedStorageVersion: "v1beta1",
+		},
+		{
+			// real world hardcoded storage encoding that
+			// should be able to be inferred when the feature is enabled
+			// without manual specification
+			name:                    "validatingadmissionpolicies_1.30",
+			emulationVersion:        version.MustParse("1.30.0"),
+			minCompatibilityVersion: version.MustParse("1.29.0"),
+			resources: []versionInfo{
+				{"v1alpha1", version.MustParse("1.26.0"), nil},
+				{"v1beta1", version.MustParse("1.28.0"), nil},
+			},
+			groups:                 []versionInfo{},
+			expectedStorageVersion: "v1beta1",
+		},
+		{
+			// real world hardcoded storage encoding that
+			// should be able to be inferred when the feature is enabled
+			// without manual specification
+			name:                    "ipaddresses-1.30",
+			emulationVersion:        version.MustParse("1.30.0"),
+			minCompatibilityVersion: version.MustParse("1.29.0"),
+			resources: []versionInfo{
+				{"v1alpha1", version.MustParse("1.27.0"), nil},
+			},
+			groups:                 []versionInfo{},
+			expectedStorageVersion: "v1alpha1",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			gr := schema.GroupResource{Group: "test-group.example.com", Resource: "myresources"}
+
+			prioritizedVersions := []schema.GroupVersion{}
+			for _, r := range tc.resources {
+				scheme.AddKnownTypeWithName(schema.GroupVersionKind{
+					Group:   gr.Group,
+					Version: r.version,
+					Kind:    "MyResource",
+				}, &runtime.Unknown{})
+				scheme.AddKnownTypeWithName(schema.GroupVersionKind{
+					Group:   gr.Group,
+					Version: r.version,
+					Kind:    "MyResourceList",
+				}, &runtime.Unknown{})
+				obj := introducedInObj{int(r.introduced.Major()), int(r.introduced.Minor())}
+				scheme.SetResourceLifecycle(gr.WithVersion(r.version), obj)
+				prioritizedVersions = append(prioritizedVersions, schema.GroupVersion{
+					Group:   gr.Group,
+					Version: r.version,
+				})
+			}
+
+			for _, g := range tc.groups {
+				scheme.SetGroupVersionLifecycle(schema.GroupVersion{
+					Group:   gr.Group,
+					Version: g.version,
+				}, schema.APILifecycle{
+					IntroducedVersion: g.introduced,
+					RemovedVersion:    g.removed,
+				})
+			}
+
+			// reverse prioritizedVersions
+			slices.Reverse(prioritizedVersions)
+			require.NoError(t, scheme.SetVersionPriority(prioritizedVersions...))
+
+			// Can't actually set emulation version used by the constructor,
+			// (blocked from having feature enabled at the same time as low
+			// emulation version)
+			// so we just override it here
+			resourceEncodingConfig := NewDefaultResourceEncodingConfig(scheme)
+			resourceEncodingConfig.emulationVersion = version.MajorMinor(tc.emulationVersion.Major(), tc.emulationVersion.Minor())
+			resourceEncodingConfig.minCompatibilityVersion = version.MajorMinor(tc.minCompatibilityVersion.Major(), tc.minCompatibilityVersion.Minor())
+
+			storageVersion, err := resourceEncodingConfig.StorageEncodingFor(gr)
+
+			if len(tc.expectedError) > 0 {
+				require.ErrorContains(t, err, tc.expectedError, "expected error, got %v", storageVersion)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedStorageVersion, storageVersion.Version)
 			}
 		})
 	}
