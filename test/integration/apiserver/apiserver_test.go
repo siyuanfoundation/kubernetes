@@ -2989,7 +2989,9 @@ func TestEnableEmulationVersion(t *testing.T) {
 			if resp.StatusCode != tc.expectedStatusCode {
 				t.Errorf("expect status code: %d, got : %d\n", tc.expectedStatusCode, resp.StatusCode)
 			}
-			defer resp.Body.Close()
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 		})
 	}
 }
@@ -3048,7 +3050,9 @@ func TestDisableEmulationVersion(t *testing.T) {
 			if resp.StatusCode != tc.expectedStatusCode {
 				t.Errorf("expect status code: %d, got : %d\n", tc.expectedStatusCode, resp.StatusCode)
 			}
-			defer resp.Body.Close()
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 		})
 	}
 }
