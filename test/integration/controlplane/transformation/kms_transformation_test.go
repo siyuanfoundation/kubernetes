@@ -642,11 +642,6 @@ resources:
 		client := dynamic.NewForConfigOrDie(test.kubeAPIServer.ClientConfig)
 
 		etcdStorageData := etcd.GetEtcdStorageDataForNamespace(testNamespace)
-		// Remove resources removed before test binary version 1.30
-		delete(etcdStorageData, gvr("flowcontrol.apiserver.k8s.io", "v1beta1", "flowschemas"))
-		delete(etcdStorageData, gvr("flowcontrol.apiserver.k8s.io", "v1beta1", "prioritylevelconfigurations"))
-		delete(etcdStorageData, gvr("flowcontrol.apiserver.k8s.io", "v1beta2", "flowschemas"))
-		delete(etcdStorageData, gvr("flowcontrol.apiserver.k8s.io", "v1beta2", "prioritylevelconfigurations"))
 
 		restResourceSet := sets.New[schema.GroupVersionResource]()
 		stubResourceSet := sets.New[schema.GroupVersionResource]()

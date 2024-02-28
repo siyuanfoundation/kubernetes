@@ -58,7 +58,6 @@ import (
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/uuid"
-	apimachineryversion "k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/endpoints/discovery"
 	apiserverfeatures "k8s.io/apiserver/pkg/features"
@@ -676,14 +675,8 @@ type RESTStorageProvider interface {
 // InstallAPIs will install the APIs for the restStorageProviders if they are enabled.
 func (m *Instance) InstallAPIs(apiResourceConfigSource serverstorage.APIResourceConfigSource, restOptionsGetter generic.RESTOptionsGetter, restStorageProviders ...RESTStorageProvider) error {
 	nonLegacy := []*genericapiserver.APIGroupInfo{}
-	var resourceExpirationEvaluator genericapiserver.ResourceExpirationEvaluator
-	var err error
 	// used later in the loop to filter the served resource by those that have expired.
-	if utilfeature.DefaultFeatureGate.Enabled(apiserverfeatures.EmulationVersion) {
-		resourceExpirationEvaluator, err = genericapiserver.NewResourceExpirationEvaluator(serverversion.Effective.EmulationVersion())
-	} else {
-		resourceExpirationEvaluator, err = genericapiserver.NewResourceExpirationEvaluator(apimachineryversion.MustParse(m.GenericAPIServer.Version.String()))
-	}
+	resourceExpirationEvaluator, err := genericapiserver.NewResourceExpirationEvaluator(serverversion.Effective.EmulationVersion())
 	if err != nil {
 		return err
 	}

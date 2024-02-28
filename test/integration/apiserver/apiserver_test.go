@@ -2937,8 +2937,8 @@ func TestDedupOwnerReferences(t *testing.T) {
 }
 
 func TestEnableEmulationVersion(t *testing.T) {
-	t.Cleanup(utilversion.Effective.SetBinaryVersionForTests(apimachineryversion.MustParse("v1.31.0")))
-	server := kubeapiservertesting.StartTestServerOrDie(t, nil, []string{"--emulated-version=1.30", "--feature-gates=EmulationVersion=true"}, framework.SharedEtcd())
+	t.Cleanup(utilversion.Effective.SetBinaryVersionForTests(apimachineryversion.MustParse("v1.32.0")))
+	server := kubeapiservertesting.StartTestServerOrDie(t, nil, []string{"--emulated-version=1.31", "--feature-gates=EmulationVersion=true"}, framework.SharedEtcd())
 	defer server.TearDownFn()
 
 	rt, err := restclient.TransportFor(server.ClientConfig)
@@ -2956,6 +2956,10 @@ func TestEnableEmulationVersion(t *testing.T) {
 		},
 		{
 			path:               "/apis/apps/v1/deployments",
+			expectedStatusCode: 200,
+		},
+		{
+			path:               "/apis/flowcontrol.apiserver.k8s.io/v1/flowschemas",
 			expectedStatusCode: 200,
 		},
 		{
@@ -2991,8 +2995,9 @@ func TestEnableEmulationVersion(t *testing.T) {
 }
 
 func TestDisableEmulationVersion(t *testing.T) {
-	t.Cleanup(utilversion.Effective.SetBinaryVersionForTests(apimachineryversion.MustParse("v1.30.0")))
-	server := kubeapiservertesting.StartTestServerOrDie(t, nil, []string{"--emulated-version=1.30", "--feature-gates=EmulationVersion=false"}, framework.SharedEtcd())
+	t.Cleanup(utilversion.Effective.SetBinaryVersionForTests(apimachineryversion.MustParse("v1.20.0")))
+
+	server := kubeapiservertesting.StartTestServerOrDie(t, nil, []string{}, framework.SharedEtcd())
 	defer server.TearDownFn()
 
 	rt, err := restclient.TransportFor(server.ClientConfig)
@@ -3010,6 +3015,10 @@ func TestDisableEmulationVersion(t *testing.T) {
 		},
 		{
 			path:               "/apis/apps/v1/deployments",
+			expectedStatusCode: 200,
+		},
+		{
+			path:               "/apis/flowcontrol.apiserver.k8s.io/v1/flowschemas",
 			expectedStatusCode: 200,
 		},
 		{

@@ -104,10 +104,11 @@ func TestValidateWhenEmulationVersionEnabled(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			binaryVersion := version.MustParseGeneric(test.binaryVersion)
+			t.Cleanup(Effective.SetBinaryVersionForTests(binaryVersion))
 			defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, genericfeatures.EmulationVersion, true)()
 
 			effective := &effectiveVersions{}
-			binaryVersion := version.MustParseGeneric(test.binaryVersion)
 			emulationVersion := version.MustParseGeneric(test.emulationVersion)
 			minCompatibilityVersion := version.MustParseGeneric(test.minCompatibilityVersion)
 			effective.Set(binaryVersion, emulationVersion, minCompatibilityVersion)
@@ -199,10 +200,11 @@ func TestValidateWhenEmulationVersionDisabled(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			binaryVersion := version.MustParseGeneric(test.binaryVersion)
+			t.Cleanup(Effective.SetBinaryVersionForTests(binaryVersion))
 			defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, genericfeatures.EmulationVersion, false)()
 
 			effective := &effectiveVersions{}
-			binaryVersion := version.MustParseGeneric(test.binaryVersion)
 			emulationVersion := version.MustParseGeneric(test.emulationVersion)
 			minCompatibilityVersion := version.MustParseGeneric(test.minCompatibilityVersion)
 			effective.Set(binaryVersion, emulationVersion, minCompatibilityVersion)
