@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/version"
 	genericfeatures "k8s.io/apiserver/pkg/features"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/component-base/featuregate"
 	baseversion "k8s.io/component-base/version"
 )
 
@@ -111,6 +112,7 @@ func (m *effectiveVersions) SetBinaryVersionForTests(binaryVersion *version.Vers
 	}
 	return func() {
 		m.Set(oldBinaryVersion, oldBinaryVersion, version.MajorMinor(oldBinaryVersion.Major(), oldBinaryVersion.SubtractMinor(1).Minor()))
+		utilfeature.DefaultMutableVersionedFeatureGate.(featuregate.MutableVersionedFeatureGateForTests).Reset()
 		if err := utilfeature.DefaultMutableVersionedFeatureGate.SetEmulationVersion(oldFeatureGateVersion); err != nil {
 			panic(err)
 		}
@@ -130,10 +132,10 @@ func (m *effectiveVersions) Validate() []error {
 	// otherwise, emulationVersion can only be 1.{binaryMinor}.
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.EmulationVersion) {
 		minEmuVer = binaryVersion.SubtractMinor(1)
-	}
-	// emulationVersion concept is introduced in 1.30, it cannot be set to be less than that.
-	if minEmuVer.LessThan(version.MajorMinor(1, 30)) {
-		minEmuVer = version.MajorMinor(1, 30)
+		// emulationVersion concept is introduced in 1.30, it cannot be set to be less than that.
+		if minEmuVer.LessThan(version.MajorMinor(1, 30)) {
+			minEmuVer = version.MajorMinor(1, 30)
+		}
 	}
 	if emulationVersion.GreaterThan(maxEmuVer) || emulationVersion.LessThan(minEmuVer) {
 		errs = append(errs, fmt.Errorf("emulation version %s is not between [%s, %s]", emulationVersion.String(), minEmuVer.String(), maxEmuVer.String()))
@@ -164,13 +166,6 @@ func newEffectiveVersion() MutableEffectiveVersions {
 	effective := &effectiveVersions{}
 	binaryVersionInfo := baseversion.Get()
 	binaryVersion := version.MustParse(binaryVersionInfo.String())
-	// the MinCompatibilityVersion is not set for tests.
-	if binaryVersion.Major() == 0 && binaryVersion.Minor() == 0 {
-		binaryVersion = version.MajorMinor(1, 30)
-		if err := utilfeature.DefaultMutableVersionedFeatureGate.SetEmulationVersion(binaryVersion); err != nil {
-			panic(err)
-		}
-	}
 	compatVersion := version.MajorMinor(binaryVersion.Major(), binaryVersion.SubtractMinor(1).Minor())
 	effective.Set(binaryVersion, binaryVersion, compatVersion)
 	return effective

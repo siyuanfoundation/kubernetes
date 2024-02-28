@@ -26,7 +26,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
-	apimachineryversion "k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/endpoints/discovery/aggregated"
 	genericfeatures "k8s.io/apiserver/pkg/features"
@@ -248,14 +247,8 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		rejectForwardingRedirects:  c.ExtraConfig.RejectForwardingRedirects,
 	}
 
-	var resourceExpirationEvaluator genericapiserver.ResourceExpirationEvaluator
 	// used later  to filter the served resource by those that have expired.
-	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.EmulationVersion) {
-		resourceExpirationEvaluator, err = genericapiserver.NewResourceExpirationEvaluator(serverversion.Effective.EmulationVersion())
-	} else {
-		resourceExpirationEvaluator, err = genericapiserver.NewResourceExpirationEvaluator(apimachineryversion.MustParse(c.GenericConfig.Version.String()))
-	}
-
+	resourceExpirationEvaluator, err := genericapiserver.NewResourceExpirationEvaluator(serverversion.Effective.EmulationVersion())
 	if err != nil {
 		return nil, err
 	}
