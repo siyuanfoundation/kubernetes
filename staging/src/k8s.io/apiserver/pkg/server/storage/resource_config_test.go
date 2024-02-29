@@ -444,6 +444,7 @@ func TestEnabledResourceWithEmulationVersion(t *testing.T) {
 }
 
 func TestStorageVersionEmulation(t *testing.T) {
+	t.Cleanup(utilversion.Effective.SetBinaryVersionForTests(version.MustParse("v1.30.0")))
 	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.EmulationVersion, true)()
 
 	type versionInfo struct {
@@ -454,7 +455,6 @@ func TestStorageVersionEmulation(t *testing.T) {
 
 	testCases := []struct {
 		name                    string
-		binaryVersion           *version.Version
 		emulationVersion        *version.Version
 		minCompatibilityVersion *version.Version
 		resources               []versionInfo
@@ -464,7 +464,6 @@ func TestStorageVersionEmulation(t *testing.T) {
 	}{
 		{
 			name:                    "emulation version is less than introduced group version",
-			binaryVersion:           version.MustParse("1.29.0"),
 			emulationVersion:        version.MustParse("1.28.0"),
 			minCompatibilityVersion: version.MustParse("1.28.0"),
 			resources: []versionInfo{
@@ -477,7 +476,6 @@ func TestStorageVersionEmulation(t *testing.T) {
 		},
 		{
 			name:                    "emulation version is greater than removed group version",
-			binaryVersion:           version.MustParse("1.30.0"),
 			emulationVersion:        version.MustParse("1.30.0"),
 			minCompatibilityVersion: version.MustParse("1.28.0"),
 			resources: []versionInfo{
@@ -490,7 +488,6 @@ func TestStorageVersionEmulation(t *testing.T) {
 		},
 		{
 			name:                    "emulation version is equal to introduced group version",
-			binaryVersion:           version.MustParse("1.30.0"),
 			emulationVersion:        version.MustParse("1.29.0"),
 			minCompatibilityVersion: version.MustParse("1.29.0"),
 			resources: []versionInfo{
@@ -503,7 +500,6 @@ func TestStorageVersionEmulation(t *testing.T) {
 		},
 		{
 			name:                    "groupVersions added but not exposed",
-			binaryVersion:           version.MustParse("1.30.0"),
 			emulationVersion:        version.MustParse("1.29.0"),
 			minCompatibilityVersion: version.MustParse("1.28.0"),
 			resources: []versionInfo{
@@ -518,12 +514,11 @@ func TestStorageVersionEmulation(t *testing.T) {
 		},
 		{
 			name:                    "GA after mincompatibility version",
-			binaryVersion:           version.MustParse("1.30.0"),
 			emulationVersion:        version.MustParse("1.30.0"),
 			minCompatibilityVersion: version.MustParse("1.29.0"),
 			resources: []versionInfo{
 				{"v1alpha1", version.MustParse("1.26.0"), version.MustParse("1.28.0")},
-				{"v1beta1", version.MustParse("1.27.0"), version.MustParse("1.29.0")},
+				{"v1beta1", version.MustParse("1.27.0"), nil},
 				{"v1", version.MustParse("1.30.0"), nil},
 			},
 			groups: []versionInfo{
@@ -538,7 +533,6 @@ func TestStorageVersionEmulation(t *testing.T) {
 			// should be able to be inferred when the feature is enabled
 			// without manual specification
 			name:                    "validatingadmissionpolicies_1.30",
-			binaryVersion:           version.MustParse("1.30.0"),
 			emulationVersion:        version.MustParse("1.30.0"),
 			minCompatibilityVersion: version.MustParse("1.29.0"),
 			resources: []versionInfo{
@@ -553,7 +547,6 @@ func TestStorageVersionEmulation(t *testing.T) {
 			// should be able to be inferred when the feature is enabled
 			// without manual specification
 			name:                    "ipaddresses-1.30",
-			binaryVersion:           version.MustParse("1.30.0"),
 			emulationVersion:        version.MustParse("1.30.0"),
 			minCompatibilityVersion: version.MustParse("1.29.0"),
 			resources: []versionInfo{
@@ -566,14 +559,6 @@ func TestStorageVersionEmulation(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			originalBinaryVersion, originalEmulationVersion, originalMinCompatibilityVersion :=
-				utilversion.Effective.BinaryVersion(), utilversion.Effective.EmulationVersion(), utilversion.Effective.MinCompatibilityVersion()
-			defer func() {
-				utilversion.Effective.Set(originalBinaryVersion, originalEmulationVersion, originalMinCompatibilityVersion)
-			}()
-
-			utilversion.Effective.Set(tc.binaryVersion, tc.emulationVersion, tc.minCompatibilityVersion)
-
 			scheme := runtime.NewScheme()
 			gr := schema.GroupResource{Group: "test-group.example.com", Resource: "myresources"}
 
@@ -611,7 +596,14 @@ func TestStorageVersionEmulation(t *testing.T) {
 			slices.Reverse(prioritizedVersions)
 			scheme.SetVersionPriority(prioritizedVersions...)
 
+			// Can't actually set emulation version used by the constructor,
+			// (blocked from having feature enabled at the same time as low
+			// emulation version)
+			// so we just override it here
 			resourceEncodingConfig := NewDefaultResourceEncodingConfig(scheme)
+			resourceEncodingConfig.emulationVersion = version.MajorMinor(tc.emulationVersion.Major(), tc.emulationVersion.Minor())
+			resourceEncodingConfig.minCompatibilityVersion = version.MajorMinor(tc.minCompatibilityVersion.Major(), tc.minCompatibilityVersion.Minor())
+
 			storageVersion, err := resourceEncodingConfig.StorageEncodingFor(gr)
 
 			if len(tc.expectedError) > 0 {
