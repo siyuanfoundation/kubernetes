@@ -24,6 +24,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
@@ -39,8 +40,10 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/apiserver/pkg/util/openapi"
 	utilpeerproxy "k8s.io/apiserver/pkg/util/peerproxy"
+	cacheddiscovery "k8s.io/client-go/discovery/cached/memory"
 	clientgoinformers "k8s.io/client-go/informers"
 	clientgoclientset "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/transport"
 	"k8s.io/component-base/version"
 	"k8s.io/klog/v2"
@@ -97,6 +100,16 @@ func BuildGenericConfig(
 
 	if lastErr = s.Features.ApplyTo(genericConfig, clientgoExternalClient, versionedInformers); lastErr != nil {
 		return
+	}
+
+	discoveryClient := cacheddiscovery.NewMemCacheClient(clientgoExternalClient.Discovery())
+	discoveryRESTMapper := restmapper.NewDeferredDiscoveryRESTMapper(discoveryClient)
+	gvr := schema.GroupVersionResource{Group: "flowcontrol.apiserver.k8s.io", Version: "v1beta1", Resource: "flowschemas"}
+	kinds, err := discoveryRESTMapper.KindFor(gvr)
+	if err == nil {
+		fmt.Printf("sizhangDebug: KindFor(%s) = %v\n", gvr.String(), kinds)
+	} else {
+		fmt.Printf("sizhangDebug: discoveryRESTMapper err: %v\n", err)
 	}
 	if lastErr = s.APIEnablement.ApplyTo(genericConfig, controlplane.DefaultAPIResourceConfigSource(legacyscheme.Scheme)); lastErr != nil {
 		return
