@@ -129,7 +129,7 @@ spec:
       failureThreshold: 8
       httpGet:
         host: 127.0.0.1
-        path: /health?exclude=NOSPACE&serializable=true
+        path: /livez
         port: 2381
         scheme: HTTP
       initialDelaySeconds: 10
