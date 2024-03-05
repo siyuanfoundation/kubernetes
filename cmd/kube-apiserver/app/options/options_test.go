@@ -35,6 +35,7 @@ import (
 	auditbuffered "k8s.io/apiserver/plugin/pkg/audit/buffered"
 	audittruncate "k8s.io/apiserver/plugin/pkg/audit/truncate"
 	cliflag "k8s.io/component-base/cli/flag"
+	"k8s.io/component-base/featuregate"
 	"k8s.io/component-base/logs"
 	"k8s.io/component-base/metrics"
 	kapi "k8s.io/kubernetes/pkg/apis/core"
@@ -48,6 +49,8 @@ import (
 func TestAddFlags(t *testing.T) {
 	fs := pflag.NewFlagSet("addflagstest", pflag.PanicOnError)
 	s := NewServerRunOptions()
+	featureGate := featuregate.NewFeatureGate()
+	s.GenericServerRunOptions.FeatureGate = featureGate
 	for _, f := range s.Flags().FlagSets {
 		fs.AddFlagSet(f)
 	}
@@ -138,6 +141,7 @@ func TestAddFlags(t *testing.T) {
 				MinRequestTimeout:           1800,
 				JSONPatchMaxCopyBytes:       int64(3 * 1024 * 1024),
 				MaxRequestBodyBytes:         int64(3 * 1024 * 1024),
+				FeatureGate:                 featureGate,
 			},
 			Admission: &kubeoptions.AdmissionOptions{
 				GenericAdmission: &apiserveroptions.AdmissionOptions{

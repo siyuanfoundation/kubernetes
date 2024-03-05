@@ -27,8 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/errors"
 	genericfeatures "k8s.io/apiserver/pkg/features"
 	"k8s.io/apiserver/pkg/server"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	serverversion "k8s.io/apiserver/pkg/util/version"
+	"k8s.io/component-base/featuregate"
 
 	"github.com/spf13/pflag"
 )
@@ -91,9 +91,12 @@ type ServerRunOptions struct {
 	// This grace period is orthogonal to other grace periods, and
 	// it is not overridden by any other grace period.
 	ShutdownWatchTerminationGracePeriod time.Duration
+
+	// FeatureGate are the featuregate to install on the CLI
+	FeatureGate featuregate.MutableVersionedFeatureGate
 }
 
-func NewServerRunOptions() *ServerRunOptions {
+func NewServerRunOptions(featureGate featuregate.MutableVersionedFeatureGate) *ServerRunOptions {
 	defaults := server.NewConfig(serializer.CodecFactory{})
 	return &ServerRunOptions{
 		MaxRequestsInFlight:                 defaults.MaxRequestsInFlight,
@@ -106,6 +109,7 @@ func NewServerRunOptions() *ServerRunOptions {
 		JSONPatchMaxCopyBytes:               defaults.JSONPatchMaxCopyBytes,
 		MaxRequestBodyBytes:                 defaults.MaxRequestBodyBytes,
 		ShutdownSendRetryAfter:              false,
+		FeatureGate:                         featureGate,
 	}
 }
 
@@ -198,7 +202,7 @@ func (s *ServerRunOptions) Validate() []error {
 	if err := validateCorsAllowedOriginList(s.CorsAllowedOriginList); err != nil {
 		errors = append(errors, err)
 	}
-	if errs := utilfeature.DefaultMutableVersionedFeatureGate.Validate(); len(errs) != 0 {
+	if errs := s.FeatureGate.Validate(); len(errs) != 0 {
 		errors = append(errors, errs...)
 	}
 	if errs := serverversion.Effective.Validate(); len(errs) != 0 {
@@ -345,15 +349,15 @@ func (s *ServerRunOptions) AddUniversalFlags(fs *pflag.FlagSet) {
 		"This option, if set, represents the maximum amount of grace period the apiserver will wait "+
 		"for active watch request(s) to drain during the graceful server shutdown window.")
 
-	utilfeature.DefaultMutableVersionedFeatureGate.DeferErrorsToValidation(true)
-	utilfeature.DefaultMutableFeatureGate.AddFlag(fs)
+	s.FeatureGate.DeferErrorsToValidation(true)
+	s.FeatureGate.AddFlag(fs)
 	serverversion.Effective.AddFlags(fs)
 }
 
 // Complete sets the final emulation version for the feature gate.
 func (s *ServerRunOptions) Complete() error {
-	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.EmulationVersion) {
-		return utilfeature.DefaultMutableVersionedFeatureGate.SetEmulationVersion(serverversion.Effective.EmulationVersion())
+	if s.FeatureGate.Enabled(genericfeatures.EmulationVersion) {
+		return s.FeatureGate.SetEmulationVersion(serverversion.Effective.EmulationVersion())
 	}
 	return nil
 }

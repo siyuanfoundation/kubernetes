@@ -109,14 +109,14 @@ func (m *effectiveVersions) Set(binaryVersion, emulationVersion, minCompatibilit
 func (m *effectiveVersions) SetBinaryVersionForTests(binaryVersion *version.Version) func() {
 	oldBinaryVersion := m.binaryVersion.Load()
 	m.Set(binaryVersion, binaryVersion, binaryVersion.SubtractMinor(1))
-	oldFeatureGateVersion := utilfeature.DefaultVersionedFeatureGate.EmulationVersion()
-	if err := utilfeature.DefaultMutableVersionedFeatureGate.SetEmulationVersion(binaryVersion); err != nil {
+	oldFeatureGateVersion := utilfeature.DefaultFeatureGate.EmulationVersion()
+	if err := utilfeature.DefaultMutableFeatureGate.SetEmulationVersion(binaryVersion); err != nil {
 		panic(err)
 	}
 	return func() {
 		m.Set(oldBinaryVersion, oldBinaryVersion, oldBinaryVersion.SubtractMinor(1))
-		utilfeature.DefaultMutableVersionedFeatureGate.(featuregate.MutableVersionedFeatureGateForTests).Reset()
-		if err := utilfeature.DefaultMutableVersionedFeatureGate.SetEmulationVersion(oldFeatureGateVersion); err != nil {
+		utilfeature.DefaultMutableFeatureGate.(featuregate.MutableVersionedFeatureGateForTests).Reset()
+		if err := utilfeature.DefaultMutableFeatureGate.SetEmulationVersion(oldFeatureGateVersion); err != nil {
 			panic(err)
 		}
 	}
