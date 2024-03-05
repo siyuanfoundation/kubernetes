@@ -19,7 +19,6 @@ package features
 import (
 	apiextensionsfeatures "k8s.io/apiextensions-apiserver/pkg/features"
 	"k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/version"
 	genericfeatures "k8s.io/apiserver/pkg/features"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	clientfeatures "k8s.io/client-go/features"
@@ -997,18 +996,6 @@ func init() {
 	ca := &clientAdapter{utilfeature.DefaultMutableFeatureGate}
 	runtime.Must(clientfeatures.AddFeaturesToExistingFeatureGates(ca))
 	clientfeatures.ReplaceFeatureGates(ca)
-}
-
-// defaultVersionedKubernetesFeatureGates consists of all known Kubernetes-specific feature keys with VersionedSpecs.
-// To add a new feature, define a key for it above and add it here. The features will be
-// available throughout Kubernetes binaries.
-//
-// Entries are separated from each other with blank lines to avoid sweeping gofmt changes
-// when adding or removing one entry.
-var defaultVersionedKubernetesFeatureGates = map[featuregate.Feature]featuregate.VersionedSpecs{
-	genericfeatures.EmulationVersion: {
-		{Version: version.MustParse("1.30"), Default: false, PreRelease: featuregate.Alpha},
-	},
 }
 
 // defaultKubernetesFeatureGates consists of all known Kubernetes-specific feature keys.

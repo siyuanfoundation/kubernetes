@@ -25,6 +25,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/errors"
+	genericfeatures "k8s.io/apiserver/pkg/features"
 	"k8s.io/apiserver/pkg/server"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	serverversion "k8s.io/apiserver/pkg/util/version"
@@ -347,4 +348,12 @@ func (s *ServerRunOptions) AddUniversalFlags(fs *pflag.FlagSet) {
 	utilfeature.DefaultMutableVersionedFeatureGate.DeferErrorsToValidation(true)
 	utilfeature.DefaultMutableFeatureGate.AddFlag(fs)
 	serverversion.Effective.AddFlags(fs)
+}
+
+// Complete sets the final emulation version for the feature gate.
+func (s *ServerRunOptions) Complete() error {
+	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.EmulationVersion) {
+		return utilfeature.DefaultMutableVersionedFeatureGate.SetEmulationVersion(serverversion.Effective.EmulationVersion())
+	}
+	return nil
 }

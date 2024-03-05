@@ -172,7 +172,7 @@ func TestLegacyRestStorageStrategies(t *testing.T) {
 		t.Fatalf("unexpected error from REST storage: %v", err)
 	}
 
-	apiGroupInfo, err := storageProvider.NewRESTStorage(serverstorage.NewResourceConfigIgnoreLifecycle(), apiserverCfg.GenericConfig.RESTOptionsGetter)
+	apiGroupInfo, err := storageProvider.NewRESTStorage(serverstorage.NewResourceConfig(), apiserverCfg.GenericConfig.RESTOptionsGetter)
 	if err != nil {
 		t.Errorf("failed to create legacy REST storage: %v", err)
 	}

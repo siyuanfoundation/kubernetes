@@ -462,22 +462,22 @@ func TestSubtractMinor(t *testing.T) {
 		{
 			version:            "1.0.2",
 			diff:               3,
-			expectedComponents: []uint{1, 0, 2},
+			expectedComponents: []uint{1, 0},
 		},
 		{
 			version:            "1.3.2-alpha+001",
 			diff:               2,
-			expectedComponents: []uint{1, 1, 2},
+			expectedComponents: []uint{1, 1},
 		},
 		{
 			version:            "1.3.2-alpha+001",
 			diff:               3,
-			expectedComponents: []uint{1, 0, 2},
+			expectedComponents: []uint{1, 0},
 		},
 		{
 			version:            "1.20",
 			diff:               5,
-			expectedComponents: []uint{1, 15, 0},
+			expectedComponents: []uint{1, 15},
 		},
 	}
 

@@ -55,25 +55,17 @@ fi
 
 
 # ensure all generic features are added in alphabetic order
-function check_line_order() {
-  local lines=$1
-  local sorted_lines
-  sorted_lines=$(echo "$lines" | sort -f)
-  if [[ "$lines" != "$sorted_lines" ]]; then
-    echo "Generic features in pkg/features/kube_features.go not sorted" >&2
-    echo >&2
-    echo "Expected:" >&2
-    echo "$sorted_lines" >&2
-    echo >&2
-    echo "Got:" >&2
-    echo "$lines" >&2
-    exit 1
-  fi
-}
-
-features=$(git grep -A50000 '.*defaultKubernetesFeatureGates\s=.*' -- pkg/features/kube_features.go | grep 'genericfeatures[.].*:')
-versionedFeatures=$(git grep -B50000 '.*defaultKubernetesFeatureGates\s=.*' -- pkg/features/kube_features.go | grep 'genericfeatures[.].*:')
-check_line_order "${features}"
-check_line_order "${versionedFeatures}"
+lines=$(git grep 'genericfeatures[.].*:' -- pkg/features/kube_features.go)
+sorted_lines=$(echo "$lines" | sort -f)
+if [[ "$lines" != "$sorted_lines" ]]; then
+  echo "Generic features in pkg/features/kube_features.go not sorted" >&2
+  echo >&2
+  echo "Expected:" >&2
+  echo "$sorted_lines" >&2
+  echo >&2
+  echo "Got:" >&2
+  echo "$lines" >&2
+  rc=1
+fi
 
 exit $rc

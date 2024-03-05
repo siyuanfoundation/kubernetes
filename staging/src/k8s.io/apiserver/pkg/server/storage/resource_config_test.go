@@ -35,7 +35,7 @@ func TestDisabledVersion(t *testing.T) {
 	g1v2 := schema.GroupVersion{Group: "group1", Version: "version2"}
 	g2v1 := schema.GroupVersion{Group: "group2", Version: "version1"}
 
-	config := NewResourceConfigIgnoreLifecycle()
+	config := NewResourceConfig()
 
 	config.DisableVersions(g1v1)
 	config.EnableVersions(g1v2, g2v1)
@@ -65,7 +65,7 @@ func TestDisabledResource(t *testing.T) {
 	g2v1rEnabled := g2v1.WithResource("enabled")
 	g2v1rDisabled := g2v1.WithResource("disabled")
 
-	config := NewResourceConfigIgnoreLifecycle()
+	config := NewResourceConfig()
 
 	config.DisableVersions(g1v1)
 	config.EnableVersions(g1v2, g2v1)
@@ -121,7 +121,7 @@ func TestAnyVersionForGroupEnabled(t *testing.T) {
 		{
 			name: "empty",
 			creator: func() APIResourceConfigSource {
-				return NewResourceConfigIgnoreLifecycle()
+				return NewResourceConfig()
 			},
 			testGroup: "one",
 
@@ -130,7 +130,7 @@ func TestAnyVersionForGroupEnabled(t *testing.T) {
 		{
 			name: "present, but disabled",
 			creator: func() APIResourceConfigSource {
-				ret := NewResourceConfigIgnoreLifecycle()
+				ret := NewResourceConfig()
 				ret.DisableVersions(schema.GroupVersion{Group: "one", Version: "version1"})
 				return ret
 			},
@@ -141,7 +141,7 @@ func TestAnyVersionForGroupEnabled(t *testing.T) {
 		{
 			name: "present, and one version enabled",
 			creator: func() APIResourceConfigSource {
-				ret := NewResourceConfigIgnoreLifecycle()
+				ret := NewResourceConfig()
 				ret.DisableVersions(schema.GroupVersion{Group: "one", Version: "version1"})
 				ret.EnableVersions(schema.GroupVersion{Group: "one", Version: "version2"})
 				return ret
@@ -153,7 +153,7 @@ func TestAnyVersionForGroupEnabled(t *testing.T) {
 		{
 			name: "present, and one resource enabled",
 			creator: func() APIResourceConfigSource {
-				ret := NewResourceConfigIgnoreLifecycle()
+				ret := NewResourceConfig()
 				ret.DisableVersions(schema.GroupVersion{Group: "one", Version: "version1"})
 				ret.EnableResources(schema.GroupVersionResource{Group: "one", Version: "version2", Resource: "foo"})
 				return ret
@@ -165,7 +165,7 @@ func TestAnyVersionForGroupEnabled(t *testing.T) {
 		{
 			name: "present, and one resource under disabled version enabled",
 			creator: func() APIResourceConfigSource {
-				ret := NewResourceConfigIgnoreLifecycle()
+				ret := NewResourceConfig()
 				ret.DisableVersions(schema.GroupVersion{Group: "one", Version: "version1"})
 				ret.EnableResources(schema.GroupVersionResource{Group: "one", Version: "version1", Resource: "foo"})
 				return ret
@@ -194,19 +194,19 @@ func TestEnabledVersionWithEmulationVersionOff(t *testing.T) {
 	g2v3 := schema.GroupVersion{Group: "group2", Version: "version3"}
 
 	scheme := runtime.NewScheme()
-	scheme.SetGroupVersionLifecycle(g1v2, schema.APILifecycle{
+	require.NoError(t, scheme.SetGroupVersionLifecycle(g1v2, schema.APILifecycle{
 		IntroducedVersion: version.MajorMinor(1, 31),
-	})
-	scheme.SetGroupVersionLifecycle(g2v1, schema.APILifecycle{
+	}))
+	require.NoError(t, scheme.SetGroupVersionLifecycle(g2v1, schema.APILifecycle{
 		RemovedVersion: version.MajorMinor(1, 29),
-	})
-	scheme.SetGroupVersionLifecycle(g2v2, schema.APILifecycle{
+	}))
+	require.NoError(t, scheme.SetGroupVersionLifecycle(g2v2, schema.APILifecycle{
 		IntroducedVersion: version.MajorMinor(1, 28),
-	})
-	scheme.SetGroupVersionLifecycle(g2v3, schema.APILifecycle{
+	}))
+	require.NoError(t, scheme.SetGroupVersionLifecycle(g2v3, schema.APILifecycle{
 		RemovedVersion: version.MajorMinor(1, 30),
-	})
-	config := NewResourceConfig(scheme)
+	}))
+	config := NewResourceConfigWithRegistry(scheme)
 
 	config.DisableVersions(g1v1)
 	config.EnableVersions(g1v2, g2v1, g2v2, g2v3)
@@ -237,21 +237,21 @@ func TestEnabledVersionWithEmulationVersion(t *testing.T) {
 	g2v3 := schema.GroupVersion{Group: "group2", Version: "version3"}
 
 	scheme := runtime.NewScheme()
-	scheme.SetGroupVersionLifecycle(g1v2, schema.APILifecycle{
+	require.NoError(t, scheme.SetGroupVersionLifecycle(g1v2, schema.APILifecycle{
 		IntroducedVersion: version.MajorMinor(1, 31),
-	})
-	scheme.SetGroupVersionLifecycle(g2v1, schema.APILifecycle{
+	}))
+	require.NoError(t, scheme.SetGroupVersionLifecycle(g2v1, schema.APILifecycle{
 		RemovedVersion: version.MajorMinor(1, 29),
-	})
-	scheme.SetGroupVersionLifecycle(g2v2, schema.APILifecycle{
+	}))
+	require.NoError(t, scheme.SetGroupVersionLifecycle(g2v2, schema.APILifecycle{
 		IntroducedVersion: version.MajorMinor(1, 28),
-	})
-	scheme.SetGroupVersionLifecycle(g2v3, schema.APILifecycle{
+	}))
+	require.NoError(t, scheme.SetGroupVersionLifecycle(g2v3, schema.APILifecycle{
 		RemovedVersion: version.MajorMinor(1, 30),
-	})
+	}))
 
 	utilversion.Effective.Set(version.MustParse("v1.31.0"), version.MustParse("v1.30.2"), version.MustParse("v1.30.0"))
-	config := NewResourceConfig(scheme)
+	config := NewResourceConfigWithRegistry(scheme)
 
 	config.DisableVersions(g1v1)
 	config.EnableVersions(g1v2, g2v1, g2v2, g2v3)
@@ -410,17 +410,17 @@ func TestEnabledResourceWithEmulationVersion(t *testing.T) {
 			defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.EmulationVersion, true)()
 			scheme := runtime.NewScheme()
 			utilversion.Effective.Set(version.MustParse("v1.31.0"), version.MustParse("v1.30.2"), version.MustParse("v1.30.0"))
-			config := NewResourceConfig(scheme)
+			config := NewResourceConfigWithRegistry(scheme)
 			gv := schema.GroupVersion{Group: "group", Version: "version"}
 			r := gv.WithResource("resource")
 			if tc.groupVersionIntroduced != nil {
-				scheme.SetGroupVersionLifecycle(gv, schema.APILifecycle{
+				require.NoError(t, scheme.SetGroupVersionLifecycle(gv, schema.APILifecycle{
 					IntroducedVersion: tc.groupVersionIntroduced,
-				})
+				}))
 			}
 			if tc.resourceIntroduced != nil {
 				obj := introducedInObj{int(tc.resourceIntroduced.Major()), int(tc.resourceIntroduced.Minor())}
-				scheme.SetResourceLifecycle(r, obj)
+				require.NoError(t, scheme.SetResourceLifecycle(r, obj))
 			}
 			if tc.enableGroupVersion {
 				config.EnableVersions(gv)
@@ -570,7 +570,7 @@ func TestStorageVersionEmulation(t *testing.T) {
 					Kind:    "MyResourceList",
 				}, &runtime.Unknown{})
 				obj := introducedInObj{int(r.introduced.Major()), int(r.introduced.Minor())}
-				scheme.SetResourceLifecycle(gr.WithVersion(r.version), obj)
+				require.NoError(t, scheme.SetResourceLifecycle(gr.WithVersion(r.version), obj))
 				prioritizedVersions = append(prioritizedVersions, schema.GroupVersion{
 					Group:   gr.Group,
 					Version: r.version,
@@ -578,13 +578,14 @@ func TestStorageVersionEmulation(t *testing.T) {
 			}
 
 			for _, g := range tc.groups {
-				scheme.SetGroupVersionLifecycle(schema.GroupVersion{
+				err := scheme.SetGroupVersionLifecycle(schema.GroupVersion{
 					Group:   gr.Group,
 					Version: g.version,
 				}, schema.APILifecycle{
 					IntroducedVersion: g.introduced,
 					RemovedVersion:    g.removed,
 				})
+				require.NoError(t, err)
 			}
 
 			// reverse prioritizedVersions

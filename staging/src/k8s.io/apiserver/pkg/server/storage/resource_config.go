@@ -56,7 +56,7 @@ type ResourceConfig struct {
 	GroupVersionRegistry
 }
 
-func NewResourceConfig(registry GroupVersionRegistry) *ResourceConfig {
+func NewResourceConfigWithRegistry(registry GroupVersionRegistry) *ResourceConfig {
 	emuVer := utilversion.Effective.EmulationVersion()
 	return &ResourceConfig{GroupVersionConfigs: map[schema.GroupVersion]bool{}, ResourceConfigs: map[schema.GroupVersionResource]bool{},
 		emulationVersion: version.MajorMinor(emuVer.Major(), emuVer.Minor()), GroupVersionRegistry: registry}
@@ -64,7 +64,7 @@ func NewResourceConfig(registry GroupVersionRegistry) *ResourceConfig {
 
 // NewResourceConfigIgnoreLifecycle creates a ResourceConfig that allows enabling/disabling resources regardless of their APILifecycle.
 // Mainly used in tests.
-func NewResourceConfigIgnoreLifecycle() *ResourceConfig {
+func NewResourceConfig() *ResourceConfig {
 	return &ResourceConfig{GroupVersionConfigs: map[schema.GroupVersion]bool{}, ResourceConfigs: map[schema.GroupVersionResource]bool{},
 		emulationVersion: version.MajorMinor(0, 0)}
 }

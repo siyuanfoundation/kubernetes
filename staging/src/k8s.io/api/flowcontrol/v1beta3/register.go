@@ -20,6 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
 // GroupName is the name of api group
@@ -57,9 +58,9 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 
 	// Registers the lifecycle of the resource types, which is checked to make sure a gvr is not available before its type is introduced or after it is removed.
-	scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("flowschema"), &FlowSchema{})
-	scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("flowschemas"), &FlowSchemaList{})
-	scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("prioritylevelconfiguration"), &PriorityLevelConfiguration{})
-	scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("prioritylevelconfigurations"), &PriorityLevelConfigurationList{})
+	utilruntime.Must(scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("flowschema"), &FlowSchema{}))
+	utilruntime.Must(scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("flowschemas"), &FlowSchemaList{}))
+	utilruntime.Must(scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("prioritylevelconfiguration"), &PriorityLevelConfiguration{}))
+	utilruntime.Must(scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("prioritylevelconfigurations"), &PriorityLevelConfigurationList{}))
 	return nil
 }

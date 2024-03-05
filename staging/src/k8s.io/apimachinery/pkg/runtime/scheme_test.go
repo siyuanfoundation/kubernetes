@@ -1016,7 +1016,12 @@ func TestGroupVersionLifecycle(t *testing.T) {
 	// lifecycle is set
 	v1 := schema.GroupVersion{Group: "group1", Version: "version1"}
 	lifecycle1 := schema.APILifecycle{IntroducedVersion: version.MajorMinor(1, 21), RemovedVersion: version.MajorMinor(1, 25)}
-	s.SetGroupVersionLifecycle(v1, lifecycle1)
+	utilruntime.Must(s.SetGroupVersionLifecycle(v1, lifecycle1))
+	utilruntime.Must(s.SetGroupVersionLifecycle(v1, lifecycle1))
+	if err := s.SetGroupVersionLifecycle(v1, schema.APILifecycle{IntroducedVersion: version.MajorMinor(1, 21)}); err == nil {
+		t.Fatalf("Expected error, got nil")
+	}
+
 	// lifecycle is not set
 	v2 := schema.GroupVersion{Group: "group2", Version: "version2"}
 	lifecycle2 := schema.APILifecycle{}
@@ -1145,14 +1150,39 @@ func TestResourceLifecycle(t *testing.T) {
 			s := runtime.NewScheme()
 			r := schema.GroupVersionResource{Group: "group", Version: "version", Resource: "r"}
 			if tc.obj != nil {
-				s.SetResourceLifecycle(r, tc.obj)
+				utilruntime.Must(s.SetResourceLifecycle(r, tc.obj))
 			}
 			if tc.groupVersionLifecycle != (schema.APILifecycle{}) {
-				s.SetGroupVersionLifecycle(r.GroupVersion(), tc.groupVersionLifecycle)
+				utilruntime.Must(s.SetGroupVersionLifecycle(r.GroupVersion(), tc.groupVersionLifecycle))
 			}
 			if e, a := tc.expectedLifecycle, s.ResourceLifecycle(r); !e.EqualTo(a) {
 				t.Errorf("Expected %v, got %v", e, a)
 			}
 		})
+	}
+}
+
+func TestSetResourceLifecycle(t *testing.T) {
+	s := runtime.NewScheme()
+	r := schema.GroupVersionResource{Group: "group", Version: "version", Resource: "r"}
+	obj := &removedInObj{1, 25}
+	obj2 := &introducedInObj{1, 22}
+	groupVersionLifecycle := schema.APILifecycle{
+		IntroducedVersion: version.MajorMinor(1, 22),
+		RemovedVersion:    version.MajorMinor(1, 26),
+	}
+	expectedLifecycle := schema.APILifecycle{
+		IntroducedVersion: version.MajorMinor(1, 22),
+		RemovedVersion:    version.MajorMinor(1, 25),
+	}
+	utilruntime.Must(s.SetGroupVersionLifecycle(r.GroupVersion(), groupVersionLifecycle))
+	utilruntime.Must(s.SetResourceLifecycle(r, obj))
+	utilruntime.Must(s.SetResourceLifecycle(r, obj))
+	utilruntime.Must(s.SetResourceLifecycle(r, &defaultObj{}))
+	if err := s.SetResourceLifecycle(r, obj2); err == nil {
+		t.Fatalf("Expected error, got nil")
+	}
+	if e, a := expectedLifecycle, s.ResourceLifecycle(r); !e.EqualTo(a) {
+		t.Errorf("Expected %v, got %v", e, a)
 	}
 }

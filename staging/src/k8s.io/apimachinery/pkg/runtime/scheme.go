@@ -739,18 +739,35 @@ type apiLifecycleRemoved interface {
 }
 
 // SetGroupVersionLifecycle sets the APILifecycle for the GroupVersion.
-func (s *Scheme) SetGroupVersionLifecycle(gv schema.GroupVersion, lifecycle schema.APILifecycle) {
+// Returns error if the gv is already registered with a different lifecycle.
+func (s *Scheme) SetGroupVersionLifecycle(gv schema.GroupVersion, lifecycle schema.APILifecycle) error {
+	if registeredLifecycle, ok := s.gvToAPILifecycle[gv]; ok {
+		if !registeredLifecycle.EqualTo(lifecycle) {
+			return fmt.Errorf("conflict in setting GroupVersionLifecycle of %v to %v with registered lifecyle %v", gv.String(), lifecycle, registeredLifecycle)
+		}
+		return nil
+	}
 	s.gvToAPILifecycle[gv] = lifecycle
+	return nil
 }
 
 // SetResourceLifecycle sets the APILifecycle for the GroupVersionResource,
 // based on Object interfaces generated from "k8s:prerelease-lifecycle-gen:" tags in types.go.
 // Only needed if the GVR lifecycle is different from the GV lifecycle.
-func (s *Scheme) SetResourceLifecycle(gvr schema.GroupVersionResource, obj Object) {
+// Returns error if the gvr is already registered with a different lifecycle.
+func (s *Scheme) SetResourceLifecycle(gvr schema.GroupVersionResource, obj Object) error {
 	lifecycle, hasLifecycle := objectAPILifecycle(obj)
-	if hasLifecycle {
-		s.gvrToAPILifecycle[gvr] = lifecycle
+	if !hasLifecycle {
+		return nil
 	}
+	if registeredLifecycle, ok := s.gvrToAPILifecycle[gvr]; ok {
+		if !registeredLifecycle.EqualTo(lifecycle) {
+			return fmt.Errorf("conflict in setting ResourceLifecycle of %v to %v with registered lifecyle %v", gvr.String(), lifecycle, registeredLifecycle)
+		}
+		return nil
+	}
+	s.gvrToAPILifecycle[gvr] = lifecycle
+	return nil
 }
 
 // GroupVersionLifecycle returns the APILifecycle for the GroupVersion.
