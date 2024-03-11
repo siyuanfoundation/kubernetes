@@ -20,8 +20,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/version"
 )
 
 // GroupName is the name of api group
@@ -48,7 +46,6 @@ var (
 )
 
 // Adds the list of known types to the given scheme.
-// Do not remove before feature EmulationVersion graduates. Types used in integration tests TestEnableEmulationVersion.
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&FlowSchema{},
@@ -57,14 +54,5 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&PriorityLevelConfigurationList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
-
-	// Registers the lifecycle of the group version, which is checked to make sure a gvr is not available before its type is introduced or after it is removed.
-	// All individual resource types of this group share the lifecycle of the group version and
-	// do not require their own lifecycles to be specified, like: scheme.SetResourceLifecycle(SchemeGroupVersion.WithResource("flowschema"), &FlowSchema{})
-	utilruntime.Must(scheme.SetGroupVersionLifecycle(SchemeGroupVersion, schema.APILifecycle{
-		IntroducedVersion: version.MajorMinor(1, 23),
-		RemovedVersion:    version.MajorMinor(1, 29),
-	}))
-
 	return nil
 }

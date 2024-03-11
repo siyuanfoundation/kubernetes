@@ -278,8 +278,8 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	return s, nil
 }
 
-func DefaultAPIResourceConfigSource(registry serverstorage.GroupVersionRegistry) *serverstorage.ResourceConfig {
-	ret := serverstorage.NewResourceConfigWithRegistry(registry)
+func DefaultAPIResourceConfigSource() *serverstorage.ResourceConfig {
+	ret := serverstorage.NewResourceConfig()
 	// NOTE: GroupVersions listed here will be enabled by default. Don't put alpha versions in the list.
 	ret.EnableVersions(
 		v1beta1.SchemeGroupVersion,

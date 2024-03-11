@@ -26,7 +26,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/dump"
 	"k8s.io/apimachinery/pkg/util/sets"
 	apimachineryversion "k8s.io/apimachinery/pkg/util/version"
+	"k8s.io/apiserver/pkg/features"
 	"k8s.io/apiserver/pkg/registry/rest"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 )
 
 func Test_newResourceExpirationEvaluator(t *testing.T) {
@@ -89,7 +92,7 @@ type removedInStorage struct {
 
 func (r removedInStorage) New() runtime.Object {
 	if r.neverRemoved {
-		return neverRemovedObj{}
+		return defaultObj{}
 	}
 	return removedInObj{major: r.major, minor: r.minor}
 }
@@ -97,13 +100,13 @@ func (r removedInStorage) New() runtime.Object {
 func (r removedInStorage) Destroy() {
 }
 
-type neverRemovedObj struct {
+type defaultObj struct {
 }
 
-func (r neverRemovedObj) GetObjectKind() schema.ObjectKind {
+func (r defaultObj) GetObjectKind() schema.ObjectKind {
 	panic("don't do this")
 }
-func (r neverRemovedObj) DeepCopyObject() runtime.Object {
+func (r defaultObj) DeepCopyObject() runtime.Object {
 	panic("don't do this either")
 }
 
@@ -121,7 +124,40 @@ func (r removedInObj) APILifecycleRemoved() (major, minor int) {
 	return r.major, r.minor
 }
 
+func storageIntroducedIn(major, minor int) introducedInStorage {
+	return introducedInStorage{major: major, minor: minor}
+}
+
+type introducedInStorage struct {
+	major, minor int
+}
+
+func (r introducedInStorage) New() runtime.Object {
+	if r.major == 0 && r.minor == 0 {
+		return defaultObj{}
+	}
+	return IntroducedInObj{major: r.major, minor: r.minor}
+}
+
+func (r introducedInStorage) Destroy() {
+}
+
+type IntroducedInObj struct {
+	major, minor int
+}
+
+func (r IntroducedInObj) GetObjectKind() schema.ObjectKind {
+	panic("don't do this")
+}
+func (r IntroducedInObj) DeepCopyObject() runtime.Object {
+	panic("don't do this either")
+}
+func (r IntroducedInObj) APILifecycleIntroduced() (major, minor int) {
+	return r.major, r.minor
+}
+
 func Test_resourceExpirationEvaluator_shouldServe(t *testing.T) {
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.EmulationVersion, true)()
 	tests := []struct {
 		name                        string
 		resourceExpirationEvaluator resourceExpirationEvaluator
@@ -196,6 +232,38 @@ func Test_resourceExpirationEvaluator_shouldServe(t *testing.T) {
 				currentVersion: apimachineryversion.MajorMinor(1, 20),
 			},
 			restStorage: storageNeverRemoved(),
+			expected:    true,
+		},
+		{
+			name: "introduced-in-curr",
+			resourceExpirationEvaluator: resourceExpirationEvaluator{
+				currentVersion: apimachineryversion.MajorMinor(1, 20),
+			},
+			restStorage: storageIntroducedIn(1, 20),
+			expected:    true,
+		},
+		{
+			name: "introduced-in-prev-major",
+			resourceExpirationEvaluator: resourceExpirationEvaluator{
+				currentVersion: apimachineryversion.MajorMinor(1, 20),
+			},
+			restStorage: storageIntroducedIn(1, 19),
+			expected:    true,
+		},
+		{
+			name: "introduced-in-future",
+			resourceExpirationEvaluator: resourceExpirationEvaluator{
+				currentVersion: apimachineryversion.MajorMinor(1, 20),
+			},
+			restStorage: storageIntroducedIn(1, 21),
+			expected:    false,
+		},
+		{
+			name: "missing-introduced",
+			resourceExpirationEvaluator: resourceExpirationEvaluator{
+				currentVersion: apimachineryversion.MajorMinor(1, 20),
+			},
+			restStorage: storageIntroducedIn(0, 0),
 			expected:    true,
 		},
 	}

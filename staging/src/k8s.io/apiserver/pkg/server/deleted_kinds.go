@@ -27,7 +27,9 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	apimachineryversion "k8s.io/apimachinery/pkg/util/version"
+	"k8s.io/apiserver/pkg/features"
 	"k8s.io/apiserver/pkg/registry/rest"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 )
 
@@ -99,6 +101,15 @@ func (e *resourceExpirationEvaluator) shouldServe(gv schema.GroupVersion, versio
 		return false
 	}
 
+	introduced, ok := versionedPtr.(introducedInterface)
+	if utilfeature.DefaultFeatureGate.Enabled(features.EmulationVersion) && ok {
+		majorIntroduced, minorIntroduced := introduced.APILifecycleIntroduced()
+		verIntroduced := apimachineryversion.MajorMinor(uint(majorIntroduced), uint(minorIntroduced))
+		if e.currentVersion.LessThan(verIntroduced) {
+			return false
+		}
+	}
+
 	removed, ok := versionedPtr.(removedInterface)
 	if !ok {
 		return true
@@ -134,6 +145,11 @@ type removedInterface interface {
 	APILifecycleRemoved() (major, minor int)
 }
 
+// Object interface generated from "k8s:prerelease-lifecycle-gen:introduced" tags in types.go.
+type introducedInterface interface {
+	APILifecycleIntroduced() (major, minor int)
+}
+
 // removeDeletedKinds inspects the storage map and modifies it in place by removing storage for kinds that have been deleted.
 // versionedResourcesStorageMap mirrors the field on APIGroupInfo, it's a map from version to resource to the storage.
 func (e *resourceExpirationEvaluator) RemoveDeletedKinds(groupName string, versioner runtime.ObjectVersioner, versionedResourcesStorageMap map[string]map[string]rest.Storage) {
@@ -153,6 +169,8 @@ func (e *resourceExpirationEvaluator) RemoveDeletedKinds(groupName string, versi
 			}
 
 			klog.V(1).Infof("Removing resource %v.%v.%v because it is time to stop serving it per APILifecycle.", resourceName, apiVersion, groupName)
+			storage := versionToResource[resourceName]
+			storage.Destroy()
 			delete(versionToResource, resourceName)
 		}
 		versionedResourcesStorageMap[apiVersion] = versionToResource

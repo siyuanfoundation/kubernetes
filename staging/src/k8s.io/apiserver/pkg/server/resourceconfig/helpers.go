@@ -28,6 +28,16 @@ import (
 	cliflag "k8s.io/component-base/cli/flag"
 )
 
+// GroupVersionRegistry provides access to registered group versions.
+type GroupVersionRegistry interface {
+	// IsGroupRegistered returns true if given group is registered.
+	IsGroupRegistered(group string) bool
+	// IsVersionRegistered returns true if given version is registered.
+	IsVersionRegistered(v schema.GroupVersion) bool
+	// PrioritizedVersionsAllGroups returns all registered group versions.
+	PrioritizedVersionsAllGroups() []schema.GroupVersion
+}
+
 // MergeResourceEncodingConfigs merges the given defaultResourceConfig with specific GroupVersionResource overrides.
 func MergeResourceEncodingConfigs(
 	defaultResourceEncoding *serverstore.DefaultResourceEncodingConfig,
@@ -74,6 +84,7 @@ var (
 func MergeAPIResourceConfigs(
 	defaultAPIResourceConfig *serverstore.ResourceConfig,
 	resourceConfigOverrides cliflag.ConfigurationMap,
+	registry GroupVersionRegistry,
 ) (*serverstore.ResourceConfig, error) {
 	resourceConfig := defaultAPIResourceConfig
 	overrides := resourceConfigOverrides
@@ -123,12 +134,12 @@ func MergeAPIResourceConfigs(
 		}
 
 		// Exclude group not registered into the registry.
-		if !resourceConfig.IsGroupRegistered(groupVersion.Group) {
+		if !registry.IsGroupRegistered(groupVersion.Group) {
 			continue
 		}
 
 		// Verify that the groupVersion is registered into registry.
-		if !resourceConfig.IsVersionRegistered(groupVersion) {
+		if !registry.IsVersionRegistered(groupVersion) {
 			return nil, fmt.Errorf("group version %s that has not been registered", groupVersion.String())
 		}
 		enabled, err := getRuntimeConfigValue(overrides, key, false)
