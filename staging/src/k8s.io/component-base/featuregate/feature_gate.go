@@ -75,7 +75,9 @@ type FeatureSpec struct {
 	LockToDefault bool
 	// PreRelease indicates the current maturity level of the feature
 	PreRelease prerelease
-	// Version indicates the version from which this configuration is valid.
+	// Version indicates the earliest version from which this FeatureSpec is valid.
+	// If multiple FeatureSpecs exist for a Feature, the one with the highest version that is less
+	// than or equal to the effective version of the component is used.
 	Version *version.Version
 }
 
@@ -145,21 +147,15 @@ type MutableFeatureGate interface {
 	OverrideDefault(name Feature, override bool) error
 }
 
-// VersionedFeatureGate indicates whether a given feature is enabled or not at the emulated version of the feature gate.
-type VersionedFeatureGate interface {
-	FeatureGate
+// MutableVersionedFeatureGate parses and stores flag gates for known features from
+// a string like feature1=true,feature2=false,...
+// MutableVersionedFeatureGate sets options based on the emulated version of the featured gate.
+type MutableVersionedFeatureGate interface {
+	MutableFeatureGate
 	// EmulationVersion returns the version the feature gate is set to emulate.
 	// If set, the feature gate would enable/disable features based on
 	// feature availability and pre-release at the emulated version instead of the binary version.
 	EmulationVersion() *version.Version
-}
-
-// MutableVersionedFeatureGate parses and stores flag gates for known features from
-// a string like feature1=true,feature2=false,...
-// And sets the options for emulated version of the featured gate.
-type MutableVersionedFeatureGate interface {
-	VersionedFeatureGate
-	MutableFeatureGate
 	// SetEmulationVersion overrides the emulationVersion of the feature gate.
 	// Otherwise, the emulationVersion will be the same as the binary version.
 	// If set, the feature defaults and availability will be as if the binary is at the emulated version.
@@ -192,17 +188,21 @@ type featureGate struct {
 
 	special map[Feature]func(map[Feature]VersionedSpecs, map[Feature]bool, bool, *version.Version)
 
-	// lock guards writes to known, enabled, and reads/writes of closed
+	// lock guards writes to all below fields.
 	lock sync.Mutex
 	// known holds a map[Feature]FeatureSpec
 	known atomic.Value
 	// enabled holds a map[Feature]bool
 	enabled atomic.Value
-	// enabledRaw holds a map[string]bool of the parsed flag
+	// enabledRaw holds a raw map[string]bool of the parsed flag.
+	// It keeps the original values of "special" features like "all alpha gates",
+	// while enabled keeps the values of all resolved features.
 	enabledRaw atomic.Value
 	// closed is set to true when AddFlag is called, and prevents subsequent calls to Add
 	closed bool
-
+	// deferErrorsToValidation could be set to true to defer checking flag setting error,
+	// because the emulationVersion may not be the final emulationVersion when the flag is set.
+	// Validate() should aways be called later to check for flag errors if deferErrorsToValidation is true.
 	deferErrorsToValidation bool
 	emulationVersion        atomic.Pointer[version.Version]
 }
@@ -502,6 +502,9 @@ func (f *featureGate) GetAllVersioned() map[Feature]VersionedSpecs {
 	return retval
 }
 
+// DeferErrorsToValidation could be used to defer checking flag setting error,
+// because the emulationVersion may not be the final emulationVersion when the flag is set.
+// Validate() should aways be called later to check for flag errors if deferErrorsToValidation is true.
 func (f *featureGate) DeferErrorsToValidation(val bool) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
