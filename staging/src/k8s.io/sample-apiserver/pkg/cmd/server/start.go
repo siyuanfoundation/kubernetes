@@ -28,9 +28,12 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/apiserver/pkg/endpoints/openapi"
+	genericfeatures "k8s.io/apiserver/pkg/features"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	utilversion "k8s.io/apiserver/pkg/util/version"
+	"k8s.io/component-base/featuregate"
 	"k8s.io/sample-apiserver/pkg/admission/plugin/banflunder"
 	"k8s.io/sample-apiserver/pkg/admission/wardleinitializer"
 	"k8s.io/sample-apiserver/pkg/apis/wardle/v1alpha1"
@@ -56,8 +59,13 @@ type WardleServerOptions struct {
 
 // NewWardleServerOptions returns a new WardleServerOptions
 func NewWardleServerOptions(out, errOut io.Writer) *WardleServerOptions {
+	effectiveVersion := utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(
+		utilversion.ComponentGenericAPIServer, utilversion.K8sDefaultEffectiveVersion())
+
 	o := &WardleServerOptions{
 		RecommendedOptions: genericoptions.NewRecommendedOptions(
+			utilfeature.DefaultFeatureGate,
+			effectiveVersion,
 			defaultEtcdPathPrefix,
 			apiserver.Codecs.LegacyCodec(v1alpha1.SchemeGroupVersion),
 		),
@@ -73,10 +81,20 @@ func NewWardleServerOptions(out, errOut io.Writer) *WardleServerOptions {
 // with a default WardleServerOptions.
 func NewCommandStartWardleServer(defaults *WardleServerOptions, stopCh <-chan struct{}) *cobra.Command {
 	o := *defaults
+	featureGate := o.RecommendedOptions.FeatureGate.(featuregate.MutableVersionedFeatureGate)
+	featureGate.DeferErrorsToValidation(true)
+	effectiveVersion := o.RecommendedOptions.EffectiveVersion.(utilversion.MutableEffectiveVersion)
+
 	cmd := &cobra.Command{
 		Short: "Launch a wardle API server",
 		Long:  "Launch a wardle API server",
 		RunE: func(c *cobra.Command, args []string) error {
+			if featureGate.Enabled(genericfeatures.EmulationVersion) {
+				if err := featureGate.SetEmulationVersion(effectiveVersion.EmulationVersion()); err != nil {
+					return err
+				}
+			}
+
 			if err := o.Complete(); err != nil {
 				return err
 			}
@@ -91,6 +109,10 @@ func NewCommandStartWardleServer(defaults *WardleServerOptions, stopCh <-chan st
 	}
 
 	flags := cmd.Flags()
+	if !featureGate.Closed() {
+		featureGate.AddFlag(flags)
+		effectiveVersion.AddFlags(flags, "")
+	}
 	o.RecommendedOptions.AddFlags(flags)
 	utilfeature.DefaultMutableFeatureGate.AddFlag(flags)
 
@@ -141,6 +163,8 @@ func (o *WardleServerOptions) Config() (*apiserver.Config, error) {
 	serverConfig.OpenAPIV3Config = genericapiserver.DefaultOpenAPIV3Config(sampleopenapi.GetOpenAPIDefinitions, openapi.NewDefinitionNamer(apiserver.Scheme))
 	serverConfig.OpenAPIV3Config.Info.Title = "Wardle"
 	serverConfig.OpenAPIV3Config.Info.Version = "0.1"
+
+	serverConfig.EffectiveVersion = o.RecommendedOptions.EffectiveVersion
 
 	if err := o.RecommendedOptions.ApplyTo(serverConfig); err != nil {
 		return nil, err

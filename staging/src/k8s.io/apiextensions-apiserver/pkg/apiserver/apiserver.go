@@ -117,8 +117,9 @@ func (cfg *Config) Complete() CompletedConfig {
 	}
 
 	c.GenericConfig.EnableDiscovery = false
-	c.GenericConfig.Version = c.GenericConfig.EffectiveVersion.EmulationVersion().VersionInfo()
-
+	if c.GenericConfig.EffectiveVersion != nil {
+		c.GenericConfig.Version = c.GenericConfig.EffectiveVersion.EmulationVersion().VersionInfo()
+	}
 	return CompletedConfig{&c}
 }
 

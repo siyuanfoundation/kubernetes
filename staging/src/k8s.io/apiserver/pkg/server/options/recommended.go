@@ -22,7 +22,7 @@ import (
 	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
-	"k8s.io/apiserver/pkg/util/feature"
+	utilversion "k8s.io/apiserver/pkg/util/version"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/component-base/featuregate"
@@ -42,6 +42,8 @@ type RecommendedOptions struct {
 
 	// FeatureGate is a way to plumb feature gate through if you have them.
 	FeatureGate featuregate.FeatureGate
+	// EffectiveVersion is a way to plumb effective version through if you have them.
+	EffectiveVersion utilversion.EffectiveVersion
 	// ExtraAdmissionInitializers is called once after all ApplyTo from the options above, to pass the returned
 	// admission plugin initializers to Admission.ApplyTo.
 	ExtraAdmissionInitializers func(c *server.RecommendedConfig) ([]admission.PluginInitializer, error)
@@ -52,7 +54,7 @@ type RecommendedOptions struct {
 	Traces *TracingOptions
 }
 
-func NewRecommendedOptions(prefix string, codec runtime.Codec) *RecommendedOptions {
+func NewRecommendedOptions(featureGate featuregate.FeatureGate, effectiveVersion utilversion.EffectiveVersion, prefix string, codec runtime.Codec) *RecommendedOptions {
 	sso := NewSecureServingOptions()
 
 	// We are composing recommended options for an aggregated api-server,
@@ -62,17 +64,15 @@ func NewRecommendedOptions(prefix string, codec runtime.Codec) *RecommendedOptio
 	sso.HTTP2MaxStreamsPerConnection = 1000
 
 	return &RecommendedOptions{
-		Etcd:           NewEtcdOptions(storagebackend.NewDefaultConfig(prefix, codec)),
-		SecureServing:  sso.WithLoopback(),
-		Authentication: NewDelegatingAuthenticationOptions(),
-		Authorization:  NewDelegatingAuthorizationOptions(),
-		Audit:          NewAuditOptions(),
-		Features:       NewFeatureOptions(),
-		CoreAPI:        NewCoreAPIOptions(),
-		// Wired a global by default that sadly people will abuse to have different meanings in different repos.
-		// Please consider creating your own FeatureGate so you can have a consistent meaning for what a variable contains
-		// across different repos.  Future you will thank you.
-		FeatureGate:                feature.DefaultFeatureGate,
+		Etcd:                       NewEtcdOptions(storagebackend.NewDefaultConfig(prefix, codec)),
+		SecureServing:              sso.WithLoopback(),
+		Authentication:             NewDelegatingAuthenticationOptions(),
+		Authorization:              NewDelegatingAuthorizationOptions(),
+		Audit:                      NewAuditOptions(),
+		Features:                   NewFeatureOptions(),
+		CoreAPI:                    NewCoreAPIOptions(),
+		FeatureGate:                featureGate,
+		EffectiveVersion:           effectiveVersion,
 		ExtraAdmissionInitializers: func(c *server.RecommendedConfig) ([]admission.PluginInitializer, error) { return nil, nil },
 		Admission:                  NewAdmissionOptions(),
 		EgressSelector:             NewEgressSelectorOptions(),

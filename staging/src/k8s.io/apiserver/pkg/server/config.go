@@ -42,7 +42,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apimachinery/pkg/util/version"
 	utilwaitgroup "k8s.io/apimachinery/pkg/util/waitgroup"
 	apimachineryversion "k8s.io/apimachinery/pkg/version"
 	"k8s.io/apiserver/pkg/admission"
@@ -78,7 +77,6 @@ import (
 	"k8s.io/component-base/metrics/features"
 	"k8s.io/component-base/metrics/prometheus/slis"
 	"k8s.io/component-base/tracing"
-	baseversion "k8s.io/component-base/version"
 	"k8s.io/klog/v2"
 	openapicommon "k8s.io/kube-openapi/pkg/common"
 	"k8s.io/kube-openapi/pkg/spec3"
@@ -590,7 +588,7 @@ func (c *Config) AddPostStartHookOrDie(name string, hook PostStartHookFunc) {
 	}
 }
 
-func completeOpenAPI(config *openapicommon.Config, version *version.Version) {
+func completeOpenAPI(config *openapicommon.Config, version *apimachineryversion.Info) {
 	if config == nil {
 		return
 	}
@@ -629,7 +627,7 @@ func completeOpenAPI(config *openapicommon.Config, version *version.Version) {
 	}
 }
 
-func completeOpenAPIV3(config *openapicommon.OpenAPIV3Config, version *version.Version) {
+func completeOpenAPIV3(config *openapicommon.OpenAPIV3Config, version *apimachineryversion.Info) {
 	if config == nil {
 		return
 	}
@@ -696,10 +694,9 @@ func (c *Config) Complete(informers informers.SharedInformerFactory) CompletedCo
 		}
 		c.ExternalAddress = net.JoinHostPort(c.ExternalAddress, strconv.Itoa(port))
 	}
-
-	var ver *version.Version
+	var ver *apimachineryversion.Info
 	if c.EffectiveVersion != nil {
-		ver = c.EffectiveVersion.EmulationVersion()
+		ver = c.EffectiveVersion.EmulationVersion().VersionInfo()
 	}
 	completeOpenAPI(c.OpenAPIConfig, ver)
 	completeOpenAPIV3(c.OpenAPIV3Config, ver)
@@ -1096,8 +1093,7 @@ func installAPI(s *GenericAPIServer, c *Config) {
 		}
 	}
 
-	kubeVersion := baseversion.Get()
-	ver := &kubeVersion
+	var ver *apimachineryversion.Info
 	if c.EffectiveVersion != nil {
 		ver = c.EffectiveVersion.EmulationVersion().VersionInfo()
 	}

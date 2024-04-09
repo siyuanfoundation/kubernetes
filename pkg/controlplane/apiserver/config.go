@@ -122,8 +122,9 @@ func BuildGenericConfig(
 	)
 
 	genericConfig.EffectiveVersion = s.GenericServerRunOptions.EffectiveVersion
-	genericConfig.Version = genericConfig.EffectiveVersion.EmulationVersion().VersionInfo()
-
+	if genericConfig.EffectiveVersion != nil {
+		genericConfig.Version = genericConfig.EffectiveVersion.EmulationVersion().VersionInfo()
+	}
 	if genericConfig.EgressSelector != nil {
 		s.Etcd.StorageConfig.Transport.EgressLookup = genericConfig.EgressSelector.Lookup
 	}

@@ -22,16 +22,30 @@ import (
 	"github.com/spf13/cobra"
 
 	"k8s.io/apiextensions-apiserver/pkg/cmd/server/options"
+	genericfeatures "k8s.io/apiserver/pkg/features"
 	genericapiserver "k8s.io/apiserver/pkg/server"
+	utilversion "k8s.io/apiserver/pkg/util/version"
+	"k8s.io/component-base/featuregate"
 )
 
 func NewServerCommand(out, errOut io.Writer, stopCh <-chan struct{}) *cobra.Command {
+
 	o := options.NewCustomResourceDefinitionsServerOptions(out, errOut)
 
+	featureGate := o.RecommendedOptions.FeatureGate.(featuregate.MutableVersionedFeatureGate)
+	effectiveVersion := o.RecommendedOptions.EffectiveVersion.(utilversion.MutableEffectiveVersion)
+	featureGate.DeferErrorsToValidation(true)
+	o.ServerRunOptions.FeatureGate = featureGate
+	o.ServerRunOptions.EffectiveVersion = effectiveVersion
 	cmd := &cobra.Command{
 		Short: "Launch an API extensions API server",
 		Long:  "Launch an API extensions API server",
 		RunE: func(c *cobra.Command, args []string) error {
+			if featureGate.Enabled(genericfeatures.EmulationVersion) {
+				if err := featureGate.SetEmulationVersion(effectiveVersion.EmulationVersion()); err != nil {
+					return err
+				}
+			}
 			if err := o.Complete(); err != nil {
 				return err
 			}
@@ -46,6 +60,10 @@ func NewServerCommand(out, errOut io.Writer, stopCh <-chan struct{}) *cobra.Comm
 	}
 
 	fs := cmd.Flags()
+	if !featureGate.Closed() {
+		featureGate.AddFlag(fs)
+		effectiveVersion.AddFlags(fs, "")
+	}
 	o.AddFlags(fs)
 	return cmd
 }

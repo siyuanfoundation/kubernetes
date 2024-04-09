@@ -32,11 +32,14 @@ import (
 	generatedopenapi "k8s.io/apiextensions-apiserver/pkg/generated/openapi"
 	"k8s.io/apimachinery/pkg/util/wait"
 	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
+	genericfeatures "k8s.io/apiserver/pkg/features"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 	"k8s.io/apiserver/pkg/util/openapi"
+	utilversion "k8s.io/apiserver/pkg/util/version"
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
+	"k8s.io/component-base/featuregate"
 	logsapi "k8s.io/component-base/logs/api/v1"
 	"k8s.io/klog/v2"
 )
@@ -118,6 +121,17 @@ func StartTestServer(t Logger, _ *TestServerInstanceOptions, customFlags []strin
 	fs := pflag.NewFlagSet("test", pflag.PanicOnError)
 
 	s := options.NewCustomResourceDefinitionsServerOptions(os.Stdout, os.Stderr)
+
+	featureGate := s.RecommendedOptions.FeatureGate.(featuregate.MutableVersionedFeatureGate)
+	effectiveVersion := s.RecommendedOptions.EffectiveVersion.(utilversion.MutableEffectiveVersion)
+	featureGate.DeferErrorsToValidation(true)
+	s.ServerRunOptions.FeatureGate = featureGate
+	s.ServerRunOptions.EffectiveVersion = effectiveVersion
+
+	if !featureGate.Closed() {
+		featureGate.AddFlag(fs)
+		effectiveVersion.AddFlags(fs, "")
+	}
 	s.AddFlags(fs)
 
 	s.RecommendedOptions.SecureServing.Listener, s.RecommendedOptions.SecureServing.BindPort, err = createLocalhostListenerOnFreePort()
@@ -139,6 +153,12 @@ func StartTestServer(t Logger, _ *TestServerInstanceOptions, customFlags []strin
 	s.APIEnablement.RuntimeConfig.Set("api/all=true")
 
 	fs.Parse(customFlags)
+
+	if featureGate.Enabled(genericfeatures.EmulationVersion) {
+		if err := featureGate.SetEmulationVersion(effectiveVersion.EmulationVersion()); err != nil {
+			return result, err
+		}
+	}
 
 	if err := s.Complete(); err != nil {
 		return result, fmt.Errorf("failed to set default options: %v", err)

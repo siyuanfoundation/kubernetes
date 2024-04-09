@@ -61,12 +61,14 @@ type CustomResourceDefinitionsServerOptions struct {
 
 // NewCustomResourceDefinitionsServerOptions creates default options of an apiextensions-apiserver.
 func NewCustomResourceDefinitionsServerOptions(out, errOut io.Writer) *CustomResourceDefinitionsServerOptions {
+	effectiveVersion := utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(
+		utilversion.ComponentGenericAPIServer, utilversion.K8sDefaultEffectiveVersion())
+
 	o := &CustomResourceDefinitionsServerOptions{
-		ServerRunOptions: genericoptions.NewServerRunOptions(
-			utilfeature.DefaultMutableFeatureGate,
-			utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(utilversion.ComponentGenericAPIServer, utilversion.K8sDefaultEffectiveVersion()),
-		),
+		ServerRunOptions: genericoptions.NewServerRunOptions(),
 		RecommendedOptions: genericoptions.NewRecommendedOptions(
+			utilfeature.DefaultMutableFeatureGate,
+			effectiveVersion,
 			defaultEtcdPathPrefix,
 			apiserver.Codecs.LegacyCodec(v1beta1.SchemeGroupVersion, v1.SchemeGroupVersion),
 		),
@@ -97,7 +99,7 @@ func (o CustomResourceDefinitionsServerOptions) Validate() error {
 
 // Complete fills in missing options.
 func (o *CustomResourceDefinitionsServerOptions) Complete() error {
-	return o.ServerRunOptions.Complete()
+	return nil
 }
 
 // Config returns an apiextensions-apiserver configuration.

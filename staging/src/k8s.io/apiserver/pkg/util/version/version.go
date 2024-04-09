@@ -86,6 +86,7 @@ type EffectiveVersion interface {
 	MinCompatibilityVersion() *version.Version
 	EqualTo(other EffectiveVersion) bool
 	String() string
+	Validate(featureGate featuregate.FeatureGate) []error
 }
 
 type MutableEffectiveVersion interface {
@@ -96,7 +97,6 @@ type MutableEffectiveVersion interface {
 	Set(binaryVersion, emulationVersion, minCompatibilityVersion *version.Version)
 	// AddFlags adds the "{prefix}-emulated-version" to the flagset.
 	AddFlags(fs *pflag.FlagSet, prefix string)
-	Validate(featureGate featuregate.FeatureGate) []error
 }
 
 type VersionVar struct {
@@ -174,12 +174,13 @@ func (m *effectiveVersion) SetBinaryVersionForTests(binaryVersion *version.Versi
 	oldBinaryVersion := m.binaryVersion.Load()
 	m.Set(binaryVersion, binaryVersion, binaryVersion.SubtractMinor(1))
 	oldFeatureGateVersion := featureGate.(featuregate.MutableVersionedFeatureGate).EmulationVersion()
+	oldFeatureGateMap := featureGate.(featuregate.MutableVersionedFeatureGateForTests).EnabledRawMap()
 	if err := featureGate.(featuregate.MutableVersionedFeatureGate).SetEmulationVersion(binaryVersion); err != nil {
 		panic(err)
 	}
 	return func() {
 		m.Set(oldBinaryVersion, oldBinaryVersion, oldBinaryVersion.SubtractMinor(1))
-		featureGate.(featuregate.MutableVersionedFeatureGateForTests).Reset()
+		featureGate.(featuregate.MutableVersionedFeatureGateForTests).Reset(oldFeatureGateMap)
 		if err := featureGate.(featuregate.MutableVersionedFeatureGate).SetEmulationVersion(oldFeatureGateVersion); err != nil {
 			panic(err)
 		}

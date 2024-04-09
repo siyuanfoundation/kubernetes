@@ -47,6 +47,7 @@ import (
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 	"k8s.io/apiserver/pkg/storageversion"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	utilversion "k8s.io/apiserver/pkg/util/version"
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	clientgotransport "k8s.io/client-go/transport"
@@ -174,9 +175,20 @@ func StartTestServer(t Logger, instanceOptions *TestServerInstanceOptions, custo
 
 	fs := pflag.NewFlagSet("test", pflag.PanicOnError)
 
+	featureGate := utilfeature.DefaultMutableFeatureGate
+	featureGate.DeferErrorsToValidation(true)
+	effectiveVersion := utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(utilversion.ComponentGenericAPIServer, utilversion.K8sDefaultEffectiveVersion())
+
 	s := options.NewServerRunOptions()
+	s.GenericServerRunOptions.FeatureGate = featureGate
+	s.GenericServerRunOptions.EffectiveVersion = effectiveVersion
+
 	for _, f := range s.Flags().FlagSets {
 		fs.AddFlagSet(f)
+	}
+	if !featureGate.Closed() {
+		featureGate.AddFlag(fs)
+		effectiveVersion.AddFlags(fs, "")
 	}
 
 	s.SecureServing.Listener, s.SecureServing.BindPort, err = createLocalhostListenerOnFreePort()
@@ -315,6 +327,10 @@ func StartTestServer(t Logger, instanceOptions *TestServerInstanceOptions, custo
 	s.APIEnablement.RuntimeConfig.Set("api/all=true")
 
 	if err := fs.Parse(customFlags); err != nil {
+		return result, err
+	}
+
+	if err := featureGate.SetEmulationVersion(effectiveVersion.EmulationVersion()); err != nil {
 		return result, err
 	}
 

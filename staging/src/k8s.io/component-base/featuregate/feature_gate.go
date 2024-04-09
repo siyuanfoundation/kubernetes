@@ -114,6 +114,9 @@ type FeatureGate interface {
 	// set on the copy without mutating the original. This is useful for validating
 	// config against potential feature gate changes before committing those changes.
 	DeepCopy() MutableVersionedFeatureGate
+	// Validate checks if the flag gates are valid at the emulated version.
+	// Should always be called after Set when DeferErrorsToValidation is set to true.
+	Validate() []error
 }
 
 // MutableFeatureGate parses and stores flag gates for known features from
@@ -123,6 +126,8 @@ type MutableFeatureGate interface {
 
 	// AddFlag adds a flag for setting global feature gates to the specified FlagSet.
 	AddFlag(fs *pflag.FlagSet)
+	// returns if AddFlag has already been called to prevent duplicate feature gate flag.
+	Closed() bool
 	// Set parses and stores flag gates for known features
 	// from a string like feature1=true,feature2=false,...
 	Set(value string) error
@@ -164,9 +169,6 @@ type MutableVersionedFeatureGate interface {
 	// This is used when the user wants to set the feature gate flag before the emulationVersion is finalized.
 	// Validate() should aways be called later to check for flag errors if deferErrorsToValidation is true.
 	DeferErrorsToValidation(val bool)
-	// Validate checks if the flag gates are valid at the emulated version.
-	// Should always be called after Set when DeferErrorsToValidation is set to true.
-	Validate() []error
 	// GetAll returns a copy of the map of known feature names to versioned feature specs.
 	GetAllVersioned() map[Feature]VersionedSpecs
 	// AddVersioned adds versioned feature specs to the featureGate.
@@ -176,10 +178,12 @@ type MutableVersionedFeatureGate interface {
 // MutableVersionedFeatureGateForTests is a feature gate interface that should only be used in tests.
 type MutableVersionedFeatureGateForTests interface {
 	MutableVersionedFeatureGate
-	// Reset sets the enabled and enabledRaw to empty.
-	Reset()
+	// Reset sets the enabled and enabledRaw to the input map.
+	Reset(m map[string]bool)
 	// ForceSet sets the feature to value regardless of its default/lock state.
 	ForceSet(feature Feature, value bool) error
+	// EnabledRawMap returns the raw enable map from the feature gate.
+	EnabledRawMap() map[string]bool
 }
 
 // featureGate implements FeatureGate as well as pflag.Value for flag parsing.
@@ -593,6 +597,12 @@ func (f *featureGate) AddFlag(fs *pflag.FlagSet) {
 		"Options are:\n"+strings.Join(known, "\n"))
 }
 
+func (f *featureGate) Closed() bool {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	return f.closed
+}
+
 func (f *featureGate) AddMetrics() {
 	for feature, featureSpec := range f.GetAll() {
 		featuremetrics.RecordFeatureInfo(context.Background(), string(feature), string(featureSpec.PreRelease), f.Enabled(feature))
@@ -650,12 +660,17 @@ func (f *featureGate) DeepCopy() MutableVersionedFeatureGate {
 	return fg
 }
 
-// Reset sets the enabled and enabledRaw to empty.
-func (f *featureGate) Reset() {
+// Reset sets the enabled and enabledRaw to the input map.
+func (f *featureGate) Reset(m map[string]bool) {
 	enabled := map[Feature]bool{}
 	enabledRaw := map[string]bool{}
 	f.enabled.Store(enabled)
 	f.enabledRaw.Store(enabledRaw)
+	f.SetFromMap(m)
+}
+
+func (f *featureGate) EnabledRawMap() map[string]bool {
+	return f.enabledRaw.Load().(map[string]bool)
 }
 
 func (f *featureGate) ForceSet(feature Feature, value bool) error {

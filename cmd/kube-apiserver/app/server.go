@@ -36,10 +36,12 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apiserver/pkg/admission"
 	genericapifilters "k8s.io/apiserver/pkg/endpoints/filters"
+	genericfeatures "k8s.io/apiserver/pkg/features"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/egressselector"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/apiserver/pkg/util/notfoundhandler"
+	utilversion "k8s.io/apiserver/pkg/util/version"
 	"k8s.io/apiserver/pkg/util/webhook"
 	"k8s.io/client-go/dynamic"
 	clientgoinformers "k8s.io/client-go/informers"
@@ -77,6 +79,13 @@ func init() {
 // NewAPIServerCommand creates a *cobra.Command object with default parameters
 func NewAPIServerCommand() *cobra.Command {
 	s := options.NewServerRunOptions()
+
+	featureGate := utilfeature.DefaultMutableFeatureGate
+	featureGate.DeferErrorsToValidation(true)
+	effectiveVersion := utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(utilversion.ComponentGenericAPIServer, utilversion.K8sDefaultEffectiveVersion())
+	s.GenericServerRunOptions.FeatureGate = featureGate
+	s.GenericServerRunOptions.EffectiveVersion = effectiveVersion
+
 	cmd := &cobra.Command{
 		Use: "kube-apiserver",
 		Long: `The Kubernetes API server validates and configures data
@@ -95,6 +104,12 @@ cluster's shared state through which all other components interact.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			verflag.PrintAndExitIfRequested()
 			fs := cmd.Flags()
+
+			if featureGate.Enabled(genericfeatures.EmulationVersion) {
+				if err := featureGate.SetEmulationVersion(effectiveVersion.EmulationVersion()); err != nil {
+					return err
+				}
+			}
 
 			// Activate logging as soon as possible, after that
 			// show flags with the final logging configuration.
@@ -129,7 +144,13 @@ cluster's shared state through which all other components interact.`,
 
 	fs := cmd.Flags()
 	namedFlagSets := s.Flags()
+	// addFlag
 	verflag.AddFlags(namedFlagSets.FlagSet("global"))
+	if !featureGate.Closed() {
+		featureGate.AddFlag(namedFlagSets.FlagSet("global"))
+		effectiveVersion.AddFlags(namedFlagSets.FlagSet("global"), "")
+	}
+
 	globalflag.AddGlobalFlags(namedFlagSets.FlagSet("global"), cmd.Name(), logs.SkipLoggingConfigurationFlags())
 	options.AddCustomGlobalFlags(namedFlagSets.FlagSet("generic"))
 	for _, f := range namedFlagSets.FlagSets {
