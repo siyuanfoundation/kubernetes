@@ -295,6 +295,7 @@ const (
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // PersistentVolume (PV) is a storage resource provisioned by an administrator.
 // It is analogous to a node.
@@ -432,6 +433,7 @@ type PersistentVolumeStatus struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // PersistentVolumeList is a list of PersistentVolume items.
 type PersistentVolumeList struct {
@@ -447,6 +449,7 @@ type PersistentVolumeList struct {
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // PersistentVolumeClaim is a user's request for and claim to a persistent volume
 type PersistentVolumeClaim struct {
@@ -469,6 +472,7 @@ type PersistentVolumeClaim struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // PersistentVolumeClaimList is a list of PersistentVolumeClaim items.
 type PersistentVolumeClaimList struct {
@@ -4662,6 +4666,7 @@ type PodStatus struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // PodStatusResult is a wrapper for PodStatus returned by kubelet that can be encode/decoded
 type PodStatusResult struct {
@@ -4682,6 +4687,7 @@ type PodStatusResult struct {
 // +genclient
 // +genclient:method=UpdateEphemeralContainers,verb=update,subresource=ephemeralcontainers
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // Pod is a collection of containers that can run on a host. This resource is created
 // by clients and scheduled onto hosts.
@@ -4707,6 +4713,7 @@ type Pod struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // PodList is a list of Pods.
 type PodList struct {
@@ -4736,6 +4743,7 @@ type PodTemplateSpec struct {
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // PodTemplate describes a template for creating copies of a predefined pod.
 type PodTemplate struct {
@@ -4752,6 +4760,7 @@ type PodTemplate struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // PodTemplateList is a list of PodTemplates.
 type PodTemplateList struct {
@@ -4866,6 +4875,7 @@ type ReplicationControllerCondition struct {
 // +genclient:method=GetScale,verb=get,subresource=scale,result=k8s.io/api/autoscaling/v1.Scale
 // +genclient:method=UpdateScale,verb=update,subresource=scale,input=k8s.io/api/autoscaling/v1.Scale,result=k8s.io/api/autoscaling/v1.Scale
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // ReplicationController represents the configuration of a replication controller.
 type ReplicationController struct {
@@ -4892,6 +4902,7 @@ type ReplicationController struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // ReplicationControllerList is a collection of replication controllers.
 type ReplicationControllerList struct {
@@ -5434,6 +5445,7 @@ type ServicePort struct {
 // +genclient
 // +genclient:skipVerbs=deleteCollection
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // Service is a named abstraction of software service (for example, mysql) consisting of local port
 // (for example 3306) that the proxy listens on, and the selector that determines which pods
@@ -5465,6 +5477,7 @@ const (
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // ServiceList holds a list of services.
 type ServiceList struct {
@@ -5481,6 +5494,7 @@ type ServiceList struct {
 // +genclient
 // +genclient:method=CreateToken,verb=create,subresource=token,input=k8s.io/api/authentication/v1.TokenRequest,result=k8s.io/api/authentication/v1.TokenRequest
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // ServiceAccount binds together:
 // * a name, understood by users, and perhaps by peripheral systems, for an identity
@@ -5520,6 +5534,7 @@ type ServiceAccount struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // ServiceAccountList is a list of ServiceAccount objects
 type ServiceAccountList struct {
@@ -5536,6 +5551,7 @@ type ServiceAccountList struct {
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // Endpoints is a collection of endpoints that implement the actual service. Example:
 //
@@ -5657,6 +5673,7 @@ type EndpointPort struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // EndpointsList is a list of endpoints.
 type EndpointsList struct {
@@ -6125,6 +6142,7 @@ type ResourceList map[ResourceName]resource.Quantity
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // Node is a worker node in Kubernetes.
 // Each node will have a unique identifier in the cache (i.e. in etcd).
@@ -6149,6 +6167,7 @@ type Node struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // NodeList is the whole list of all Nodes which have been registered with master.
 type NodeList struct {
@@ -6247,6 +6266,7 @@ type NamespaceCondition struct {
 // +genclient:nonNamespaced
 // +genclient:skipVerbs=deleteCollection
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // Namespace provides a scope for Names.
 // Use of multiple namespaces is optional.
@@ -6269,6 +6289,7 @@ type Namespace struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // NamespaceList is a list of Namespaces.
 type NamespaceList struct {
@@ -6284,6 +6305,8 @@ type NamespaceList struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
+// +k8s:prerelease-lifecycle-gen:deprecated=1.6
 
 // Binding ties one object to another; for example, a pod is bound to a node by a scheduler.
 // Deprecated in 1.7, please use the bindings subresource of pods instead.
@@ -6308,6 +6331,7 @@ type Preconditions struct {
 
 // +k8s:conversion-gen:explicit-from=net/url.Values
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // PodLogOptions is the query options for a Pod's logs REST call.
 type PodLogOptions struct {
@@ -6360,6 +6384,7 @@ type PodLogOptions struct {
 
 // +k8s:conversion-gen:explicit-from=net/url.Values
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.1
 
 // PodAttachOptions is the query options to a Pod's remote attach call.
 // ---
@@ -6398,6 +6423,7 @@ type PodAttachOptions struct {
 
 // +k8s:conversion-gen:explicit-from=net/url.Values
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // PodExecOptions is the query options to a Pod's remote exec call.
 // ---
@@ -6436,6 +6462,7 @@ type PodExecOptions struct {
 
 // +k8s:conversion-gen:explicit-from=net/url.Values
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.6
 
 // PodPortForwardOptions is the query options to a Pod's port forward call
 // when using WebSockets.
@@ -6455,6 +6482,7 @@ type PodPortForwardOptions struct {
 
 // +k8s:conversion-gen:explicit-from=net/url.Values
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // PodProxyOptions is the query options to a Pod's proxy call.
 type PodProxyOptions struct {
@@ -6467,6 +6495,7 @@ type PodProxyOptions struct {
 
 // +k8s:conversion-gen:explicit-from=net/url.Values
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.2
 
 // NodeProxyOptions is the query options to a Node's proxy call.
 type NodeProxyOptions struct {
@@ -6479,6 +6508,7 @@ type NodeProxyOptions struct {
 
 // +k8s:conversion-gen:explicit-from=net/url.Values
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.2
 
 // ServiceProxyOptions is the query options to a Service's proxy call.
 type ServiceProxyOptions struct {
@@ -6575,6 +6605,7 @@ type TypedLocalObjectReference struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // SerializedReference is a reference to serialized object.
 type SerializedReference struct {
@@ -6604,6 +6635,7 @@ const (
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // Event is a report of an event somewhere in the cluster.  Events
 // have a limited retention time and triggers and messages may evolve
@@ -6688,6 +6720,7 @@ type EventSeries struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // EventList is a list of events.
 type EventList struct {
@@ -6702,6 +6735,7 @@ type EventList struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // List holds a list of objects, which may not be known by the server.
 type List metav1.List
@@ -6749,6 +6783,7 @@ type LimitRangeSpec struct {
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // LimitRange sets resource usage limits for each kind of resource in a Namespace.
 type LimitRange struct {
@@ -6765,6 +6800,7 @@ type LimitRange struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // LimitRangeList is a list of LimitRange items.
 type LimitRangeList struct {
@@ -6913,6 +6949,7 @@ type ResourceQuotaStatus struct {
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // ResourceQuota sets aggregate quota restrictions enforced per namespace
 type ResourceQuota struct {
@@ -6934,6 +6971,7 @@ type ResourceQuota struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // ResourceQuotaList is a list of ResourceQuota items.
 type ResourceQuotaList struct {
@@ -6950,6 +6988,7 @@ type ResourceQuotaList struct {
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // Secret holds secret data of a certain type. The total bytes of the values in
 // the Data field must be less than MaxSecretSize bytes.
@@ -7076,6 +7115,7 @@ const (
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // SecretList is a list of Secret.
 type SecretList struct {
@@ -7092,6 +7132,7 @@ type SecretList struct {
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.2
 
 // ConfigMap holds configuration data for pods to consume.
 type ConfigMap struct {
@@ -7128,6 +7169,7 @@ type ConfigMap struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.2
 
 // ConfigMapList is a resource containing a list of ConfigMap objects.
 type ConfigMapList struct {
@@ -7170,6 +7212,7 @@ type ComponentCondition struct {
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // ComponentStatus (and ComponentStatusList) holds the cluster validation info.
 // Deprecated: This API is deprecated in v1.19+
@@ -7190,6 +7233,7 @@ type ComponentStatus struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // Status of all the conditions for the component as a list of ComponentStatus objects.
 // Deprecated: This API is deprecated in v1.19+
@@ -7401,6 +7445,7 @@ type WindowsSecurityContextOptions struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:prerelease-lifecycle-gen:introduced=1.0
 
 // RangeAllocation is not a public type.
 type RangeAllocation struct {
