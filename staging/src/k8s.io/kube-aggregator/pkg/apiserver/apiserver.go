@@ -185,8 +185,9 @@ func (cfg *Config) Complete() CompletedConfig {
 	// the kube aggregator wires its own discovery mechanism
 	// TODO eventually collapse this by extracting all of the discovery out
 	c.GenericConfig.EnableDiscovery = false
-	c.GenericConfig.Version = c.GenericConfig.EffectiveVersion.EmulationVersion().VersionInfo()
-
+	if c.GenericConfig.EffectiveVersion != nil {
+		c.GenericConfig.Version = c.GenericConfig.EffectiveVersion.EmulationVersion().VersionInfo()
+	}
 	return CompletedConfig{&c}
 }
 

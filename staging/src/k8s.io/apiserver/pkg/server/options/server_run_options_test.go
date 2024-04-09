@@ -263,8 +263,7 @@ func TestValidateCorsAllowedOriginList(t *testing.T) {
 	for _, test := range tests {
 		for _, regexp := range test.regexp {
 			t.Run(fmt.Sprintf("regexp/%s", regexp), func(t *testing.T) {
-				featureGate := utilfeature.DefaultFeatureGate.DeepCopy()
-				options := NewServerRunOptions(featureGate, utilversion.NewEffectiveVersion("1.30"))
+				options := NewServerRunOptions()
 				if errs := options.Validate(); len(errs) != 0 {
 					t.Fatalf("wrong test setup: %#v", errs)
 				}
@@ -296,13 +295,13 @@ func TestServerRunOptionsWithShutdownWatchTerminationGracePeriod(t *testing.T) {
 		{
 			name: "default should be valid",
 			optionsFn: func() *ServerRunOptions {
-				return NewServerRunOptions(utilfeature.DefaultFeatureGate.DeepCopy(), utilversion.NewEffectiveVersion("1.30"))
+				return NewServerRunOptions()
 			},
 		},
 		{
 			name: "negative not allowed",
 			optionsFn: func() *ServerRunOptions {
-				o := NewServerRunOptions(utilfeature.DefaultFeatureGate.DeepCopy(), utilversion.NewEffectiveVersion("1.30"))
+				o := NewServerRunOptions()
 				o.ShutdownWatchTerminationGracePeriod = -time.Second
 				return o
 			},
@@ -329,7 +328,7 @@ func TestServerRunOptionsWithShutdownWatchTerminationGracePeriod(t *testing.T) {
 	}
 
 	t.Run("default should be zero", func(t *testing.T) {
-		options := NewServerRunOptions(utilfeature.DefaultFeatureGate.DeepCopy(), utilversion.NewEffectiveVersion("1.30"))
+		options := NewServerRunOptions()
 		if options.ShutdownWatchTerminationGracePeriod != time.Duration(0) {
 			t.Errorf("expected default of ShutdownWatchTerminationGracePeriod to be zero, but got: %s", options.ShutdownWatchTerminationGracePeriod)
 		}

@@ -27,7 +27,7 @@ import (
 	"k8s.io/apiserver/pkg/util/webhook"
 	"k8s.io/client-go/informers"
 
-	v1 "k8s.io/kubernetes/pkg/apis/apps/v1"
+	"k8s.io/kubernetes/pkg/apis/apps/v1"
 	controlplaneapiserver "k8s.io/kubernetes/pkg/controlplane/apiserver/options"
 )
 

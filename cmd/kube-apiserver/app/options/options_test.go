@@ -56,6 +56,8 @@ func TestAddFlags(t *testing.T) {
 	for _, f := range s.Flags().FlagSets {
 		fs.AddFlagSet(f)
 	}
+	featureGate.AddFlag(fs)
+	effectiveVersion.AddFlags(fs, "")
 
 	args := []string{
 		"--enable-admission-plugins=AlwaysDeny",

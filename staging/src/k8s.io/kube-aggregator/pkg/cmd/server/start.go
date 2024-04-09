@@ -27,6 +27,7 @@ import (
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
+	genericfeatures "k8s.io/apiserver/pkg/features"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/filters"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
@@ -59,10 +60,21 @@ type AggregatorOptions struct {
 // with a default AggregatorOptions.
 func NewCommandStartAggregator(defaults *AggregatorOptions, stopCh <-chan struct{}) *cobra.Command {
 	o := *defaults
+	featureGate := utilfeature.DefaultMutableFeatureGate
+	effectiveVersion := utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(
+		utilversion.ComponentGenericAPIServer, utilversion.K8sDefaultEffectiveVersion())
+	featureGate.DeferErrorsToValidation(true)
+	o.ServerRunOptions.FeatureGate = featureGate
+	o.ServerRunOptions.EffectiveVersion = effectiveVersion
 	cmd := &cobra.Command{
 		Short: "Launch a API aggregator and proxy server",
 		Long:  "Launch a API aggregator and proxy server",
 		RunE: func(c *cobra.Command, args []string) error {
+			if featureGate.Enabled(genericfeatures.EmulationVersion) {
+				if err := featureGate.SetEmulationVersion(effectiveVersion.EmulationVersion()); err != nil {
+					return err
+				}
+			}
 			if err := o.Complete(); err != nil {
 				return err
 			}
@@ -75,8 +87,10 @@ func NewCommandStartAggregator(defaults *AggregatorOptions, stopCh <-chan struct
 			return nil
 		},
 	}
-
-	o.AddFlags(cmd.Flags())
+	fs := cmd.Flags()
+	featureGate.AddFlag(fs)
+	effectiveVersion.AddFlags(fs, "")
+	o.AddFlags(fs)
 	return cmd
 }
 
@@ -92,10 +106,7 @@ func (o *AggregatorOptions) AddFlags(fs *pflag.FlagSet) {
 // NewDefaultOptions builds a "normal" set of options.  You wouldn't normally expose this, but hyperkube isn't cobra compatible
 func NewDefaultOptions(out, err io.Writer) *AggregatorOptions {
 	o := &AggregatorOptions{
-		ServerRunOptions: genericoptions.NewServerRunOptions(
-			utilfeature.DefaultMutableFeatureGate,
-			utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(utilversion.ComponentGenericAPIServer, utilversion.K8sDefaultEffectiveVersion()),
-		),
+		ServerRunOptions: genericoptions.NewServerRunOptions(),
 		RecommendedOptions: genericoptions.NewRecommendedOptions(
 			defaultEtcdPathPrefix,
 			aggregatorscheme.Codecs.LegacyCodec(v1beta1.SchemeGroupVersion),
@@ -159,7 +170,6 @@ func (o AggregatorOptions) RunAggregator(stopCh <-chan struct{}) error {
 			ServiceResolver: serviceResolver,
 		},
 	}
-	config.GenericConfig.EffectiveVersion = o.ServerRunOptions.EffectiveVersion
 
 	if len(o.ProxyClientCertFile) == 0 || len(o.ProxyClientKeyFile) == 0 {
 		return errors.New("missing a client certificate along with a key to identify the proxy to the API server")
