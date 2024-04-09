@@ -42,8 +42,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/version"
 	utilwaitgroup "k8s.io/apimachinery/pkg/util/waitgroup"
-	"k8s.io/apimachinery/pkg/version"
+	apimachineryversion "k8s.io/apimachinery/pkg/version"
 	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/apiserver/pkg/audit"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
@@ -77,6 +78,7 @@ import (
 	"k8s.io/component-base/metrics/features"
 	"k8s.io/component-base/metrics/prometheus/slis"
 	"k8s.io/component-base/tracing"
+	baseversion "k8s.io/component-base/version"
 	"k8s.io/klog/v2"
 	openapicommon "k8s.io/kube-openapi/pkg/common"
 	"k8s.io/kube-openapi/pkg/spec3"
@@ -149,7 +151,8 @@ type Config struct {
 	PostStartHooks map[string]PostStartHookConfigEntry
 
 	// Version will enable the /version endpoint if non-nil
-	Version          *version.Info
+	// Deprecated: Use EffectiveVersion instead
+	Version          *apimachineryversion.Info
 	EffectiveVersion utilversion.EffectiveVersion
 	// AuditBackend is where audit events are sent to.
 	AuditBackend audit.Backend
@@ -587,7 +590,7 @@ func (c *Config) AddPostStartHookOrDie(name string, hook PostStartHookFunc) {
 	}
 }
 
-func completeOpenAPI(config *openapicommon.Config, version *version.Info) {
+func completeOpenAPI(config *openapicommon.Config, version *version.Version) {
 	if config == nil {
 		return
 	}
@@ -626,7 +629,7 @@ func completeOpenAPI(config *openapicommon.Config, version *version.Info) {
 	}
 }
 
-func completeOpenAPIV3(config *openapicommon.OpenAPIV3Config, version *version.Info) {
+func completeOpenAPIV3(config *openapicommon.OpenAPIV3Config, version *version.Version) {
 	if config == nil {
 		return
 	}
@@ -694,8 +697,12 @@ func (c *Config) Complete(informers informers.SharedInformerFactory) CompletedCo
 		c.ExternalAddress = net.JoinHostPort(c.ExternalAddress, strconv.Itoa(port))
 	}
 
-	completeOpenAPI(c.OpenAPIConfig, c.Version)
-	completeOpenAPIV3(c.OpenAPIV3Config, c.Version)
+	var ver *version.Version
+	if c.EffectiveVersion != nil {
+		ver = c.EffectiveVersion.EmulationVersion()
+	}
+	completeOpenAPI(c.OpenAPIConfig, ver)
+	completeOpenAPIV3(c.OpenAPIV3Config, ver)
 
 	if c.DiscoveryAddresses == nil {
 		c.DiscoveryAddresses = discovery.DefaultAddresses{DefaultAddress: c.ExternalAddress}
@@ -821,7 +828,6 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		APIServerID:           c.APIServerID,
 		StorageVersionManager: c.StorageVersionManager,
 
-		Version:          c.Version,
 		EffectiveVersion: c.EffectiveVersion,
 
 		muxAndDiscoveryCompleteSignals: map[string]<-chan struct{}{},
@@ -1090,7 +1096,12 @@ func installAPI(s *GenericAPIServer, c *Config) {
 		}
 	}
 
-	routes.Version{Version: c.Version}.Install(s.Handler.GoRestfulContainer)
+	kubeVersion := baseversion.Get()
+	ver := &kubeVersion
+	if c.EffectiveVersion != nil {
+		ver = c.EffectiveVersion.EmulationVersion().VersionInfo()
+	}
+	routes.Version{Version: ver}.Install(s.Handler.GoRestfulContainer)
 
 	if c.EnableDiscovery {
 		if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.AggregatedDiscoveryEndpoint) {

@@ -237,6 +237,7 @@ type GenericAPIServer struct {
 	StorageVersionManager storageversion.Manager
 
 	// Version will enable the /version endpoint if non-nil
+	// Deprecated: Use EffectiveVersion instead
 	Version          *version.Info
 	EffectiveVersion utilversion.EffectiveVersion
 

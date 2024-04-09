@@ -42,6 +42,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/sets"
+	versionutil "k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
 	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
@@ -102,8 +103,8 @@ func setUp(t *testing.T) (*etcd3testing.EtcdTestServer, Config, *assert.Assertio
 
 	kubeVersion := kubeversion.Get()
 	config.GenericConfig.Authorization.Authorizer = authorizerfactory.NewAlwaysAllowAuthorizer()
-	config.GenericConfig.Version = &kubeVersion
 	config.GenericConfig.EffectiveVersion = utilversion.NewEffectiveVersion(kubeVersion.String())
+	// config.GenericConfig.Version = config.GenericConfig.EffectiveVersion.EmulationVersion().VersionInfo()
 	config.ExtraConfig.StorageFactory = storageFactory
 	config.GenericConfig.LoopbackClientConfig = &restclient.Config{APIPath: "/api", ContentConfig: restclient.ContentConfig{NegotiatedSerializer: legacyscheme.Codecs}}
 	config.GenericConfig.PublicAddress = netutils.ParseIPSloppy("192.168.10.4")
@@ -230,9 +231,9 @@ func TestVersion(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
-
-	if !reflect.DeepEqual(kubeversion.Get(), info) {
-		t.Errorf("Expected %#v, Got %#v", kubeversion.Get(), info)
+	expectedVer := versionutil.MustParseMajorMinor(kubeversion.Get().String()).VersionInfo()
+	if !reflect.DeepEqual(*expectedVer, info) {
+		t.Errorf("Expected %#v, Got %#v", *expectedVer, info)
 	}
 }
 

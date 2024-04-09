@@ -40,6 +40,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	versionutil "k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	appsv1ac "k8s.io/client-go/applyconfigurations/apps/v1"
@@ -65,7 +66,8 @@ func TestClient(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if e, a := version.Get(), *info; !reflect.DeepEqual(e, a) {
+	expectedVersion := versionutil.MustParseMajorMinor(version.Get().String())
+	if e, a := expectedVersion.VersionInfo(), info; !reflect.DeepEqual(e, a) {
 		t.Errorf("expected %#v, got %#v", e, a)
 	}
 

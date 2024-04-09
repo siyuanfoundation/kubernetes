@@ -166,8 +166,8 @@ func (m *effectiveVersion) String() string {
 
 func (m *effectiveVersion) Set(binaryVersion, emulationVersion, minCompatibilityVersion *version.Version) {
 	m.binaryVersion.Store(binaryVersion)
-	m.emulationVersion.val.Store(emulationVersion.WithPatch(0))
-	m.minCompatibilityVersion.val.Store(minCompatibilityVersion.WithPatch(0))
+	m.emulationVersion.val.Store(version.MajorMinor(emulationVersion.Major(), emulationVersion.Minor()))
+	m.minCompatibilityVersion.val.Store(version.MajorMinor(minCompatibilityVersion.Major(), minCompatibilityVersion.Minor()))
 }
 
 func (m *effectiveVersion) SetBinaryVersionForTests(binaryVersion *version.Version, featureGate featuregate.FeatureGate) func() {

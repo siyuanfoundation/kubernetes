@@ -23,6 +23,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	apimachineryversion "k8s.io/apimachinery/pkg/version"
 )
 
 // Version is an opaque representation of a version number
@@ -271,6 +273,9 @@ func (v *Version) WithPatch(patch uint) *Version {
 
 // WithPreRelease returns copy of the version object with requested prerelease
 func (v *Version) WithPreRelease(preRelease string) *Version {
+	if len(preRelease) == 0 {
+		return v
+	}
 	result := *v
 	result.components = []uint{v.Major(), v.Minor(), v.Patch()}
 	result.preRelease = preRelease
@@ -310,6 +315,15 @@ func (v *Version) String() string {
 	}
 
 	return buffer.String()
+}
+
+// VersionInfo converts Version into apimachineryversion.Info object using the major and minor.
+func (v *Version) VersionInfo() *apimachineryversion.Info {
+	return &apimachineryversion.Info{
+		Major:      strconv.Itoa(int(v.Major())),
+		Minor:      strconv.Itoa(int(v.Minor())),
+		GitVersion: v.String(),
+	}
 }
 
 // compareInternal returns -1 if v is less than other, 1 if it is greater than other, or 0

@@ -346,7 +346,7 @@ func TestAddFlags(t *testing.T) {
 		t.Errorf("Got different run options than expected.\nDifference detected on:\n%s", cmp.Diff(expected, s, cmpopts.IgnoreUnexported(admission.Plugins{}, kubeoptions.OIDCAuthenticationOptions{})))
 	}
 
-	if s.GenericServerRunOptions.EffectiveVersion.EmulationVersion().String() != "1.31.0" {
-		t.Errorf("Got emulation version %s, wanted %s", s.GenericServerRunOptions.EffectiveVersion.EmulationVersion().String(), "1.31.0")
+	if s.GenericServerRunOptions.EffectiveVersion.EmulationVersion().String() != "1.31" {
+		t.Errorf("Got emulation version %s, wanted %s", s.GenericServerRunOptions.EffectiveVersion.EmulationVersion().String(), "1.31")
 	}
 }
