@@ -36,7 +36,6 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apiserver/pkg/admission"
 	genericapifilters "k8s.io/apiserver/pkg/endpoints/filters"
-	genericfeatures "k8s.io/apiserver/pkg/features"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/egressselector"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -106,10 +105,8 @@ cluster's shared state through which all other components interact.`,
 			verflag.PrintAndExitIfRequested()
 			fs := cmd.Flags()
 
-			if featureGate.Enabled(genericfeatures.EmulationVersion) {
-				if err := featureGate.SetEmulationVersion(effectiveVersion.EmulationVersion()); err != nil {
-					return err
-				}
+			if err := featureGate.SetEmulationVersion(effectiveVersion.EmulationVersion()); err != nil {
+				return err
 			}
 
 			// Activate logging as soon as possible, after that

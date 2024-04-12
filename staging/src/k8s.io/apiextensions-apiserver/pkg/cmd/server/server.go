@@ -22,7 +22,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"k8s.io/apiextensions-apiserver/pkg/cmd/server/options"
-	genericfeatures "k8s.io/apiserver/pkg/features"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	utilversion "k8s.io/apiserver/pkg/util/version"
@@ -43,11 +42,10 @@ func NewServerCommand(out, errOut io.Writer, stopCh <-chan struct{}) *cobra.Comm
 		Short: "Launch an API extensions API server",
 		Long:  "Launch an API extensions API server",
 		RunE: func(c *cobra.Command, args []string) error {
-			if featureGate.Enabled(genericfeatures.EmulationVersion) {
-				if err := featureGate.SetEmulationVersion(effectiveVersion.EmulationVersion()); err != nil {
-					return err
-				}
+			if err := featureGate.SetEmulationVersion(effectiveVersion.EmulationVersion()); err != nil {
+				return err
 			}
+
 			if err := o.Complete(); err != nil {
 				return err
 			}

@@ -17,8 +17,6 @@ limitations under the License.
 package features
 
 import (
-	"k8s.io/apimachinery/pkg/util/version"
-	genericfeatures "k8s.io/apiserver/pkg/features"
 	"k8s.io/component-base/featuregate"
 )
 
@@ -29,7 +27,8 @@ import (
 // Entries are separated from each other with blank lines to avoid sweeping gofmt changes
 // when adding or removing one entry.
 var defaultVersionedKubernetesFeatureGates = map[featuregate.Feature]featuregate.VersionedSpecs{
-	genericfeatures.EmulationVersion: {
-		{Version: version.MustParse("1.30"), Default: false, PreRelease: featuregate.Alpha},
-	},
+	// Example:
+	// genericfeatures.EmulationVersion: {
+	// 	{Version: version.MustParse("1.30"), Default: false, PreRelease: featuregate.Alpha},
+	// },
 }

@@ -32,7 +32,6 @@ import (
 	generatedopenapi "k8s.io/apiextensions-apiserver/pkg/generated/openapi"
 	"k8s.io/apimachinery/pkg/util/wait"
 	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
-	genericfeatures "k8s.io/apiserver/pkg/features"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -153,10 +152,8 @@ func StartTestServer(t Logger, _ *TestServerInstanceOptions, customFlags []strin
 
 	fs.Parse(customFlags)
 
-	if featureGate.Enabled(genericfeatures.EmulationVersion) {
-		if err := featureGate.SetEmulationVersion(effectiveVersion.EmulationVersion()); err != nil {
-			return result, err
-		}
+	if err := featureGate.SetEmulationVersion(effectiveVersion.EmulationVersion()); err != nil {
+		return result, err
 	}
 
 	if err := s.Complete(); err != nil {

@@ -27,7 +27,6 @@ import (
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
-	genericfeatures "k8s.io/apiserver/pkg/features"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/filters"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
@@ -70,10 +69,8 @@ func NewCommandStartAggregator(defaults *AggregatorOptions, stopCh <-chan struct
 		Short: "Launch a API aggregator and proxy server",
 		Long:  "Launch a API aggregator and proxy server",
 		RunE: func(c *cobra.Command, args []string) error {
-			if featureGate.Enabled(genericfeatures.EmulationVersion) {
-				if err := featureGate.SetEmulationVersion(effectiveVersion.EmulationVersion()); err != nil {
-					return err
-				}
+			if err := featureGate.SetEmulationVersion(effectiveVersion.EmulationVersion()); err != nil {
+				return err
 			}
 			if err := o.Complete(); err != nil {
 				return err

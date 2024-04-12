@@ -27,9 +27,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	apimachineryversion "k8s.io/apimachinery/pkg/util/version"
-	"k8s.io/apiserver/pkg/features"
 	"k8s.io/apiserver/pkg/registry/rest"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 )
 
@@ -102,7 +100,7 @@ func (e *resourceExpirationEvaluator) shouldServe(gv schema.GroupVersion, versio
 	}
 
 	introduced, ok := versionedPtr.(introducedInterface)
-	if utilfeature.DefaultFeatureGate.Enabled(features.EmulationVersion) && ok {
+	if ok {
 		majorIntroduced, minorIntroduced := introduced.APILifecycleIntroduced()
 		verIntroduced := apimachineryversion.MajorMinor(uint(majorIntroduced), uint(minorIntroduced))
 		if e.currentVersion.LessThan(verIntroduced) {

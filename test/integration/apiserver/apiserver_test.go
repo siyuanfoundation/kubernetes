@@ -51,13 +51,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer/streaming"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
-	apimachineryversion "k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/endpoints/handlers"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	utilversion "k8s.io/apiserver/pkg/util/version"
 	"k8s.io/client-go/dynamic"
 	clientset "k8s.io/client-go/kubernetes"
 	appsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
@@ -2933,10 +2930,9 @@ func TestDedupOwnerReferences(t *testing.T) {
 }
 
 func TestEnableEmulationVersion(t *testing.T) {
-	effectiveVersion := utilversion.K8sDefaultEffectiveVersion()
-	t.Cleanup(effectiveVersion.SetBinaryVersionForTests(apimachineryversion.MustParse("v1.32.0"), utilfeature.DefaultFeatureGate))
-	utilversion.DefaultEffectiveVersionRegistry.RegisterEffectiveVersionFor(utilversion.ComponentGenericAPIServer, effectiveVersion)
-	server := kubeapiservertesting.StartTestServerOrDie(t, nil, []string{"--emulated-version=1.31", "--feature-gates=EmulationVersion=true"}, framework.SharedEtcd())
+	server := kubeapiservertesting.StartTestServerOrDie(t,
+		&kubeapiservertesting.TestServerInstanceOptions{BinaryVersion: "1.32"},
+		[]string{"--emulated-version=1.31"}, framework.SharedEtcd())
 	defer server.TearDownFn()
 
 	rt, err := restclient.TransportFor(server.ClientConfig)
@@ -2995,11 +2991,9 @@ func TestEnableEmulationVersion(t *testing.T) {
 }
 
 func TestDisableEmulationVersion(t *testing.T) {
-	effectiveVersion := utilversion.K8sDefaultEffectiveVersion()
-	t.Cleanup(effectiveVersion.SetBinaryVersionForTests(apimachineryversion.MustParse("v1.20.0"), utilfeature.DefaultFeatureGate))
-	utilversion.DefaultEffectiveVersionRegistry.RegisterEffectiveVersionFor(utilversion.ComponentGenericAPIServer, effectiveVersion)
-
-	server := kubeapiservertesting.StartTestServerOrDie(t, nil, []string{}, framework.SharedEtcd())
+	server := kubeapiservertesting.StartTestServerOrDie(t,
+		&kubeapiservertesting.TestServerInstanceOptions{BinaryVersion: "1.32"},
+		[]string{}, framework.SharedEtcd())
 	defer server.TearDownFn()
 
 	rt, err := restclient.TransportFor(server.ClientConfig)
@@ -3025,15 +3019,15 @@ func TestDisableEmulationVersion(t *testing.T) {
 		},
 		{
 			path:               "/apis/flowcontrol.apiserver.k8s.io/v1beta1/flowschemas", // introduced at 1.20, removed at 1.26
-			expectedStatusCode: 200,
+			expectedStatusCode: 404,
 		},
 		{
 			path:               "/apis/flowcontrol.apiserver.k8s.io/v1beta2/flowschemas", // introduced at 1.23, removed at 1.29
-			expectedStatusCode: 200,
+			expectedStatusCode: 404,
 		},
 		{
 			path:               "/apis/flowcontrol.apiserver.k8s.io/v1beta3/flowschemas", // introduced at 1.26, removed at 1.32
-			expectedStatusCode: 200,
+			expectedStatusCode: 404,
 		},
 	}
 

@@ -26,11 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/dump"
 	"k8s.io/apimachinery/pkg/util/sets"
 	apimachineryversion "k8s.io/apimachinery/pkg/util/version"
-	"k8s.io/apiserver/pkg/features"
 	"k8s.io/apiserver/pkg/registry/rest"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	utilversion "k8s.io/apiserver/pkg/util/version"
-	featuregatetesting "k8s.io/component-base/featuregate/testing"
 )
 
 func Test_newResourceExpirationEvaluator(t *testing.T) {
@@ -158,9 +154,6 @@ func (r *IntroducedInObj) APILifecycleIntroduced() (major, minor int) {
 }
 
 func Test_resourceExpirationEvaluator_shouldServe(t *testing.T) {
-	effectiveVersion := utilversion.K8sDefaultEffectiveVersion()
-	t.Cleanup(effectiveVersion.SetBinaryVersionForTests(apimachineryversion.MustParse("v1.31.0"), utilfeature.DefaultFeatureGate))
-	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.EmulationVersion, true)()
 	tests := []struct {
 		name                        string
 		resourceExpirationEvaluator resourceExpirationEvaluator

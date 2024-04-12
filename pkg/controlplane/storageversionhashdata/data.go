@@ -84,8 +84,6 @@ var GVRToStorageVersionHash = map[string]string{
 	"admissionregistration.k8s.io/v1/validatingadmissionpolicies":       "P/h9c6yIbaY=",
 	"admissionregistration.k8s.io/v1/validatingadmissionpolicybindings": "XYju31JKYek=",
 	"events.k8s.io/v1/events":                                           "r2yiGXH7wu8=",
-	"flowcontrol.apiserver.k8s.io/v1beta3/flowschemas":                  "GJVAJZSZBIw=",
-	"flowcontrol.apiserver.k8s.io/v1beta3/prioritylevelconfigurations":  "Kir5PVfvNeI=",
 	"flowcontrol.apiserver.k8s.io/v1/flowschemas":                       "GJVAJZSZBIw=",
 	"flowcontrol.apiserver.k8s.io/v1/prioritylevelconfigurations":       "Kir5PVfvNeI=",
 }

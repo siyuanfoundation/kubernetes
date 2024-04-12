@@ -24,8 +24,6 @@ import (
 
 	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/util/version"
-	genericfeatures "k8s.io/apiserver/pkg/features"
-	"k8s.io/component-base/featuregate"
 	baseversion "k8s.io/component-base/version"
 )
 
@@ -86,14 +84,11 @@ type EffectiveVersion interface {
 	MinCompatibilityVersion() *version.Version
 	EqualTo(other EffectiveVersion) bool
 	String() string
-	Validate(featureGate featuregate.FeatureGate) []error
+	Validate() []error
 }
 
 type MutableEffectiveVersion interface {
 	EffectiveVersion
-	// SetBinaryVersionForTests updates the binaryVersion.
-	// Should only be used in tests.
-	SetBinaryVersionForTests(binaryVersion *version.Version, featureGate featuregate.FeatureGate) func()
 	Set(binaryVersion, emulationVersion, minCompatibilityVersion *version.Version)
 	// AddFlags adds the "{prefix}-emulated-version" to the flagset.
 	AddFlags(fs *pflag.FlagSet, prefix string)
@@ -170,36 +165,21 @@ func (m *effectiveVersion) Set(binaryVersion, emulationVersion, minCompatibility
 	m.minCompatibilityVersion.val.Store(version.MajorMinor(minCompatibilityVersion.Major(), minCompatibilityVersion.Minor()))
 }
 
-func (m *effectiveVersion) SetBinaryVersionForTests(binaryVersion *version.Version, featureGate featuregate.FeatureGate) func() {
-	oldBinaryVersion := m.binaryVersion.Load()
-	m.Set(binaryVersion, binaryVersion, binaryVersion.SubtractMinor(1))
-	oldFeatureGateVersion := featureGate.(featuregate.MutableVersionedFeatureGate).EmulationVersion()
-	oldFeatureGateMap := featureGate.(featuregate.MutableVersionedFeatureGateForTests).EnabledRawMap()
-	if err := featureGate.(featuregate.MutableVersionedFeatureGate).SetEmulationVersion(binaryVersion); err != nil {
-		panic(err)
-	}
-	return func() {
-		m.Set(oldBinaryVersion, oldBinaryVersion, oldBinaryVersion.SubtractMinor(1))
-		featureGate.(featuregate.MutableVersionedFeatureGateForTests).Reset(oldFeatureGateMap)
-		if err := featureGate.(featuregate.MutableVersionedFeatureGate).SetEmulationVersion(oldFeatureGateVersion); err != nil {
-			panic(err)
-		}
-	}
-}
-
-func (m *effectiveVersion) Validate(featureGate featuregate.FeatureGate) []error {
+func (m *effectiveVersion) Validate() []error {
 	var errs []error
 	// Validate only checks the major and minor versions.
 	binaryVersion := m.binaryVersion.Load().WithPatch(0)
 	emulationVersion := m.emulationVersion.val.Load()
 	minCompatibilityVersion := m.minCompatibilityVersion.val.Load()
 
+	// emulationVersion can only be 1.{binaryMinor-1}...1.{binaryMinor}.
 	maxEmuVer := binaryVersion
-	minEmuVer := binaryVersion
-	// emulationVersion can only be 1.{binaryMinor-1}...1.{binaryMinor} for alpha if EmulationVersion feature gate is enabled.
-	// otherwise, emulationVersion can only be 1.{binaryMinor}.
-	if featureGate.Enabled(genericfeatures.EmulationVersion) {
-		minEmuVer = binaryVersion.SubtractMinor(1)
+	minEmuVer := binaryVersion.SubtractMinor(1)
+	// TODO: remove in 1.32
+	// emulationVersion is introduced in 1.31, so it cannot be lower than that.
+	// binaryVersion could be lower than 1.31 in tests. So we are only checking 1.31.
+	if binaryVersion.EqualTo(version.MajorMinor(1, 31)) {
+		minEmuVer = version.MajorMinor(1, 31)
 	}
 	if emulationVersion.GreaterThan(maxEmuVer) || emulationVersion.LessThan(minEmuVer) {
 		errs = append(errs, fmt.Errorf("emulation version %s is not between [%s, %s]", emulationVersion.String(), minEmuVer.String(), maxEmuVer.String()))

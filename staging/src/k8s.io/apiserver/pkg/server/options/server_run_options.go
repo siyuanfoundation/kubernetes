@@ -212,7 +212,7 @@ func (s *ServerRunOptions) Validate() []error {
 	if s.EffectiveVersion == nil {
 		return errors
 	}
-	if errs := s.EffectiveVersion.Validate(s.FeatureGate); len(errs) != 0 {
+	if errs := s.EffectiveVersion.Validate(); len(errs) != 0 {
 		errors = append(errors, errs...)
 	}
 	return errors

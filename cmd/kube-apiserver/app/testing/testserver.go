@@ -97,6 +97,9 @@ type TestServerInstanceOptions struct {
 	// We specify this as on option to pass a common proxyCA to multiple apiservers to simulate
 	// an apiserver version skew scenario where all apiservers use the same proxyCA to verify client connections.
 	ProxyCA *ProxyCA
+	// Set the BinaryVersion of server effective version.
+	// Default to 1.31
+	BinaryVersion string
 }
 
 // TestServer return values supplied by kube-test-ApiServer
@@ -177,7 +180,12 @@ func StartTestServer(t Logger, instanceOptions *TestServerInstanceOptions, custo
 
 	featureGate := utilfeature.DefaultMutableFeatureGate
 	featureGate.DeferErrorsToValidation(true)
-	effectiveVersion := utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(utilversion.ComponentGenericAPIServer, utilversion.K8sDefaultEffectiveVersion())
+	binaryVersion := "1.31"
+	if instanceOptions.BinaryVersion != "" {
+		binaryVersion = instanceOptions.BinaryVersion
+	}
+	effectiveVersion := utilversion.NewEffectiveVersion(binaryVersion)
+	utilversion.DefaultEffectiveVersionRegistry.RegisterEffectiveVersionFor(utilversion.ComponentGenericAPIServer, effectiveVersion)
 
 	s := options.NewServerRunOptions()
 	s.GenericServerRunOptions.FeatureGate = featureGate
