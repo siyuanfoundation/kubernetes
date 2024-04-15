@@ -32,6 +32,7 @@ import (
 	genericoptions "k8s.io/apiserver/pkg/server/options"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	utilversion "k8s.io/apiserver/pkg/util/version"
+	"k8s.io/component-base/featuregate"
 	"k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 	"k8s.io/kube-aggregator/pkg/apiserver"
 	aggregatorscheme "k8s.io/kube-aggregator/pkg/apiserver/scheme"
@@ -59,12 +60,9 @@ type AggregatorOptions struct {
 // with a default AggregatorOptions.
 func NewCommandStartAggregator(defaults *AggregatorOptions, stopCh <-chan struct{}) *cobra.Command {
 	o := *defaults
-	featureGate := utilfeature.DefaultMutableFeatureGate
-	effectiveVersion := utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(
-		utilversion.ComponentGenericAPIServer, utilversion.K8sDefaultEffectiveVersion())
+	featureGate := o.ServerRunOptions.FeatureGate.(featuregate.MutableVersionedFeatureGate)
+	effectiveVersion := o.ServerRunOptions.EffectiveVersion.(utilversion.MutableEffectiveVersion)
 	featureGate.DeferErrorsToValidation(true)
-	o.ServerRunOptions.FeatureGate = featureGate
-	o.ServerRunOptions.EffectiveVersion = effectiveVersion
 	cmd := &cobra.Command{
 		Short: "Launch a API aggregator and proxy server",
 		Long:  "Launch a API aggregator and proxy server",
@@ -102,8 +100,11 @@ func (o *AggregatorOptions) AddFlags(fs *pflag.FlagSet) {
 
 // NewDefaultOptions builds a "normal" set of options.  You wouldn't normally expose this, but hyperkube isn't cobra compatible
 func NewDefaultOptions(out, err io.Writer) *AggregatorOptions {
+	featureGate := utilfeature.DefaultMutableFeatureGate
+	effectiveVersion := utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(
+		utilversion.ComponentGenericAPIServer, utilversion.K8sDefaultEffectiveVersion())
 	o := &AggregatorOptions{
-		ServerRunOptions: genericoptions.NewServerRunOptions(),
+		ServerRunOptions: genericoptions.NewServerRunOptions(featureGate, effectiveVersion),
 		RecommendedOptions: genericoptions.NewRecommendedOptions(
 			defaultEtcdPathPrefix,
 			aggregatorscheme.Codecs.LegacyCodec(v1beta1.SchemeGroupVersion),

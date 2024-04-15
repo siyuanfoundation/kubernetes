@@ -44,11 +44,9 @@ import (
 
 func TestAddFlags(t *testing.T) {
 	fs := pflag.NewFlagSet("addflagstest", pflag.PanicOnError)
-	s := NewOptions()
 	featureGate := featuregate.NewFeatureGate()
 	effectiveVersion := utilversion.NewEffectiveVersion("1.32")
-	s.GenericServerRunOptions.FeatureGate = featureGate
-	s.GenericServerRunOptions.EffectiveVersion = effectiveVersion
+	s := NewOptions(featureGate, effectiveVersion)
 	var fss cliflag.NamedFlagSets
 	s.AddFlags(&fss)
 	for _, f := range fss.FlagSets {

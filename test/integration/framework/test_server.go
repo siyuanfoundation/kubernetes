@@ -130,12 +130,10 @@ func StartTestServer(ctx context.Context, t testing.TB, setup TestServerSetup) (
 		t.Fatalf("write file %s failed: %v", saSigningKeyFile.Name(), err)
 	}
 
-	opts := options.NewServerRunOptions()
 	featureGate := utilfeature.DefaultFeatureGate
 	effectiveVersion := utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(
 		utilversion.ComponentGenericAPIServer, utilversion.K8sDefaultEffectiveVersion())
-	opts.GenericServerRunOptions.FeatureGate = featureGate
-	opts.GenericServerRunOptions.EffectiveVersion = effectiveVersion
+	opts := options.NewServerRunOptions(featureGate, effectiveVersion)
 	opts.SecureServing.Listener = listener
 	opts.SecureServing.BindAddress = netutils.ParseIPSloppy("127.0.0.1")
 	opts.SecureServing.ServerCert.CertDirectory = certDir

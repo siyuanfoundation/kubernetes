@@ -223,3 +223,10 @@ func NewEffectiveVersion(binaryVer string) MutableEffectiveVersion {
 func K8sDefaultEffectiveVersion() MutableEffectiveVersion {
 	return NewEffectiveVersion(baseversion.Get().String())
 }
+
+// TestEffectiveVersion should only be used for tests.
+// It returns the MutableEffectiveVersion based on a
+// manually set binary version instead of the "0.0" returned by baseversion.Get() in tests.
+func TestEffectiveVersion() MutableEffectiveVersion {
+	return NewEffectiveVersion("1.31")
+}

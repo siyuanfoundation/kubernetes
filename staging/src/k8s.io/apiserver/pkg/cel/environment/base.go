@@ -49,7 +49,7 @@ func DefaultCompatibilityVersion() *version.Version {
 	).MinCompatibilityVersion()
 	// if MinCompatibilityVersion is not set for tests
 	if ver.Major() == 0 && ver.Minor() == 0 {
-		return version.MajorMinor(1, 29)
+		return utilversion.TestEffectiveVersion().MinCompatibilityVersion()
 	}
 	return ver
 }

@@ -77,14 +77,11 @@ func init() {
 
 // NewAPIServerCommand creates a *cobra.Command object with default parameters
 func NewAPIServerCommand() *cobra.Command {
-	s := options.NewServerRunOptions()
-
 	featureGate := utilfeature.DefaultMutableFeatureGate
 	featureGate.DeferErrorsToValidation(true)
 	effectiveVersion := utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(
 		utilversion.ComponentGenericAPIServer, utilversion.K8sDefaultEffectiveVersion())
-	s.GenericServerRunOptions.FeatureGate = featureGate
-	s.GenericServerRunOptions.EffectiveVersion = effectiveVersion
+	s := options.NewServerRunOptions(featureGate, effectiveVersion)
 
 	cmd := &cobra.Command{
 		Use: "kube-apiserver",
@@ -111,7 +108,7 @@ cluster's shared state through which all other components interact.`,
 
 			// Activate logging as soon as possible, after that
 			// show flags with the final logging configuration.
-			if err := logsapi.ValidateAndApply(s.Logs, utilfeature.DefaultFeatureGate); err != nil {
+			if err := logsapi.ValidateAndApply(s.Logs, featureGate); err != nil {
 				return err
 			}
 			cliflag.PrintFlags(fs)
@@ -127,7 +124,7 @@ cluster's shared state through which all other components interact.`,
 				return utilerrors.NewAggregate(errs)
 			}
 			// add feature enablement metrics
-			utilfeature.DefaultMutableFeatureGate.AddMetrics()
+			featureGate.AddMetrics()
 			return Run(completedOptions, genericapiserver.SetupSignalHandler())
 		},
 		Args: func(cmd *cobra.Command, args []string) error {

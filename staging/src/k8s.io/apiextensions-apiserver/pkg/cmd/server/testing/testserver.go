@@ -119,14 +119,11 @@ func StartTestServer(t Logger, _ *TestServerInstanceOptions, customFlags []strin
 
 	fs := pflag.NewFlagSet("test", pflag.PanicOnError)
 
-	s := options.NewCustomResourceDefinitionsServerOptions(os.Stdout, os.Stderr)
-
 	featureGate := utilfeature.DefaultMutableFeatureGate
 	effectiveVersion := utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(
 		utilversion.ComponentGenericAPIServer, utilversion.K8sDefaultEffectiveVersion())
 	featureGate.DeferErrorsToValidation(true)
-	s.ServerRunOptions.FeatureGate = featureGate
-	s.ServerRunOptions.EffectiveVersion = effectiveVersion
+	s := options.NewCustomResourceDefinitionsServerOptions(os.Stdout, os.Stderr, featureGate, effectiveVersion)
 
 	featureGate.AddFlag(fs)
 	effectiveVersion.AddFlags(fs, "")

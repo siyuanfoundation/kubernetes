@@ -73,6 +73,7 @@ import (
 	utilversion "k8s.io/apiserver/pkg/util/version"
 	"k8s.io/client-go/informers"
 	restclient "k8s.io/client-go/rest"
+	"k8s.io/component-base/featuregate"
 	"k8s.io/component-base/logs"
 	"k8s.io/component-base/metrics/features"
 	"k8s.io/component-base/metrics/prometheus/slis"
@@ -152,6 +153,8 @@ type Config struct {
 	// Deprecated: Use EffectiveVersion instead
 	Version          *apimachineryversion.Info
 	EffectiveVersion utilversion.EffectiveVersion
+	// FeatureGate is a way to plumb feature gate through if you have them.
+	FeatureGate featuregate.FeatureGate
 	// AuditBackend is where audit events are sent to.
 	AuditBackend audit.Backend
 	// AuditPolicyRuleEvaluator makes the decision of whether and how to audit log a request.
@@ -679,14 +682,12 @@ func (c *Config) ShutdownInitiatedNotify() <-chan struct{} {
 // Complete fills in any fields not set that are required to have valid data and can be derived
 // from other fields. If you're going to `ApplyOptions`, do that first. It's mutating the receiver.
 func (c *Config) Complete(informers informers.SharedInformerFactory) CompletedConfig {
+	if c.FeatureGate == nil {
+		c.FeatureGate = utilfeature.DefaultFeatureGate
+	}
 	if len(c.ExternalAddress) == 0 && c.PublicAddress != nil {
 		c.ExternalAddress = c.PublicAddress.String()
 	}
-
-	// if c.EffectiveVersion == nil {
-	// 	c.EffectiveVersion = utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(
-	// 		utilversion.ComponentGenericAPIServer, utilversion.K8sDefaultEffectiveVersion())
-	// }
 
 	// if there is no port, and we listen on one securely, use that one
 	if _, _, err := net.SplitHostPort(c.ExternalAddress); err != nil {
@@ -831,6 +832,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		StorageVersionManager: c.StorageVersionManager,
 
 		EffectiveVersion: c.EffectiveVersion,
+		FeatureGate:      c.FeatureGate,
 
 		muxAndDiscoveryCompleteSignals: map[string]<-chan struct{}{},
 	}

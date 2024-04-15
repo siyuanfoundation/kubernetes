@@ -48,11 +48,10 @@ import (
 
 func TestAddFlags(t *testing.T) {
 	fs := pflag.NewFlagSet("addflagstest", pflag.PanicOnError)
-	s := NewServerRunOptions()
+
 	featureGate := featuregate.NewFeatureGate()
 	effectiveVersion := utilversion.NewEffectiveVersion("1.32")
-	s.GenericServerRunOptions.FeatureGate = featureGate
-	s.GenericServerRunOptions.EffectiveVersion = effectiveVersion
+	s := NewServerRunOptions(featureGate, effectiveVersion)
 	for _, f := range s.Flags().FlagSets {
 		fs.AddFlagSet(f)
 	}

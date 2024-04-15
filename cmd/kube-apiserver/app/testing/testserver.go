@@ -180,16 +180,14 @@ func StartTestServer(t Logger, instanceOptions *TestServerInstanceOptions, custo
 
 	featureGate := utilfeature.DefaultMutableFeatureGate
 	featureGate.DeferErrorsToValidation(true)
-	binaryVersion := "1.31"
+	binaryVersion := utilversion.TestEffectiveVersion().BinaryVersion().String()
 	if instanceOptions.BinaryVersion != "" {
 		binaryVersion = instanceOptions.BinaryVersion
 	}
 	effectiveVersion := utilversion.NewEffectiveVersion(binaryVersion)
 	utilversion.DefaultEffectiveVersionRegistry.RegisterEffectiveVersionFor(utilversion.ComponentGenericAPIServer, effectiveVersion)
 
-	s := options.NewServerRunOptions()
-	s.GenericServerRunOptions.FeatureGate = featureGate
-	s.GenericServerRunOptions.EffectiveVersion = effectiveVersion
+	s := options.NewServerRunOptions(featureGate, effectiveVersion)
 
 	for _, f := range s.Flags().FlagSets {
 		fs.AddFlagSet(f)

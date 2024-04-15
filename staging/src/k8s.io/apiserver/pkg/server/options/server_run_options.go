@@ -97,7 +97,7 @@ type ServerRunOptions struct {
 	EffectiveVersion utilversion.EffectiveVersion
 }
 
-func NewServerRunOptions() *ServerRunOptions {
+func NewServerRunOptions(featureGate featuregate.FeatureGate, effectiveVersion utilversion.EffectiveVersion) *ServerRunOptions {
 	defaults := server.NewConfig(serializer.CodecFactory{})
 	return &ServerRunOptions{
 		MaxRequestsInFlight:                 defaults.MaxRequestsInFlight,
@@ -110,6 +110,8 @@ func NewServerRunOptions() *ServerRunOptions {
 		JSONPatchMaxCopyBytes:               defaults.JSONPatchMaxCopyBytes,
 		MaxRequestBodyBytes:                 defaults.MaxRequestBodyBytes,
 		ShutdownSendRetryAfter:              false,
+		FeatureGate:                         featureGate,
+		EffectiveVersion:                    effectiveVersion,
 	}
 }
 
@@ -131,6 +133,7 @@ func (s *ServerRunOptions) ApplyTo(c *server.Config) error {
 	c.ShutdownSendRetryAfter = s.ShutdownSendRetryAfter
 	c.ShutdownWatchTerminationGracePeriod = s.ShutdownWatchTerminationGracePeriod
 	c.EffectiveVersion = s.EffectiveVersion
+	c.FeatureGate = s.FeatureGate
 
 	return nil
 }
@@ -203,17 +206,15 @@ func (s *ServerRunOptions) Validate() []error {
 	if err := validateCorsAllowedOriginList(s.CorsAllowedOriginList); err != nil {
 		errors = append(errors, err)
 	}
-	if s.FeatureGate == nil {
-		return errors
+	if s.FeatureGate != nil {
+		if errs := s.FeatureGate.Validate(); len(errs) != 0 {
+			errors = append(errors, errs...)
+		}
 	}
-	if errs := s.FeatureGate.Validate(); len(errs) != 0 {
-		errors = append(errors, errs...)
-	}
-	if s.EffectiveVersion == nil {
-		return errors
-	}
-	if errs := s.EffectiveVersion.Validate(); len(errs) != 0 {
-		errors = append(errors, errs...)
+	if s.EffectiveVersion != nil {
+		if errs := s.EffectiveVersion.Validate(); len(errs) != 0 {
+			errors = append(errors, errs...)
+		}
 	}
 	return errors
 }

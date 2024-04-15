@@ -90,12 +90,10 @@ func StartRealAPIServerOrDie(t *testing.T, configFuncs ...func(*options.ServerRu
 		t.Fatalf("write file %s failed: %v", saSigningKeyFile.Name(), err)
 	}
 
-	opts := options.NewServerRunOptions()
 	featureGate := utilfeature.DefaultFeatureGate
 	effectiveVersion := utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(
 		utilversion.ComponentGenericAPIServer, utilversion.K8sDefaultEffectiveVersion())
-	opts.GenericServerRunOptions.FeatureGate = featureGate
-	opts.GenericServerRunOptions.EffectiveVersion = effectiveVersion
+	opts := options.NewServerRunOptions(featureGate, effectiveVersion)
 	opts.Options.SecureServing.Listener = listener
 	opts.Options.SecureServing.ServerCert.CertDirectory = certDir
 	opts.Options.ServiceAccountSigningKeyFile = saSigningKeyFile.Name()

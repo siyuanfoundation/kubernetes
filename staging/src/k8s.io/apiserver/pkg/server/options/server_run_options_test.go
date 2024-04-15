@@ -216,6 +216,8 @@ func TestServerRunOptionsValidate(t *testing.T) {
 }
 
 func TestValidateCorsAllowedOriginList(t *testing.T) {
+	featureGate := utilfeature.DefaultFeatureGate.DeepCopy()
+	effectiveVersion := utilversion.NewEffectiveVersion("1.30")
 	tests := []struct {
 		regexp           [][]string
 		errShouldContain string
@@ -263,7 +265,7 @@ func TestValidateCorsAllowedOriginList(t *testing.T) {
 	for _, test := range tests {
 		for _, regexp := range test.regexp {
 			t.Run(fmt.Sprintf("regexp/%s", regexp), func(t *testing.T) {
-				options := NewServerRunOptions()
+				options := NewServerRunOptions(featureGate, effectiveVersion)
 				if errs := options.Validate(); len(errs) != 0 {
 					t.Fatalf("wrong test setup: %#v", errs)
 				}
@@ -287,6 +289,8 @@ func TestValidateCorsAllowedOriginList(t *testing.T) {
 }
 
 func TestServerRunOptionsWithShutdownWatchTerminationGracePeriod(t *testing.T) {
+	featureGate := utilfeature.DefaultFeatureGate.DeepCopy()
+	effectiveVersion := utilversion.NewEffectiveVersion("1.30")
 	tests := []struct {
 		name             string
 		optionsFn        func() *ServerRunOptions
@@ -295,13 +299,13 @@ func TestServerRunOptionsWithShutdownWatchTerminationGracePeriod(t *testing.T) {
 		{
 			name: "default should be valid",
 			optionsFn: func() *ServerRunOptions {
-				return NewServerRunOptions()
+				return NewServerRunOptions(featureGate, effectiveVersion)
 			},
 		},
 		{
 			name: "negative not allowed",
 			optionsFn: func() *ServerRunOptions {
-				o := NewServerRunOptions()
+				o := NewServerRunOptions(featureGate, effectiveVersion)
 				o.ShutdownWatchTerminationGracePeriod = -time.Second
 				return o
 			},
@@ -328,7 +332,7 @@ func TestServerRunOptionsWithShutdownWatchTerminationGracePeriod(t *testing.T) {
 	}
 
 	t.Run("default should be zero", func(t *testing.T) {
-		options := NewServerRunOptions()
+		options := NewServerRunOptions(featureGate, effectiveVersion)
 		if options.ShutdownWatchTerminationGracePeriod != time.Duration(0) {
 			t.Errorf("expected default of ShutdownWatchTerminationGracePeriod to be zero, but got: %s", options.ShutdownWatchTerminationGracePeriod)
 		}

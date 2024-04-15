@@ -28,16 +28,12 @@ import (
 )
 
 func NewServerCommand(out, errOut io.Writer, stopCh <-chan struct{}) *cobra.Command {
-
-	o := options.NewCustomResourceDefinitionsServerOptions(out, errOut)
-
 	featureGate := utilfeature.DefaultMutableFeatureGate
 	effectiveVersion := utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(
 		utilversion.ComponentGenericAPIServer, utilversion.K8sDefaultEffectiveVersion())
 	featureGate.DeferErrorsToValidation(true)
+	o := options.NewCustomResourceDefinitionsServerOptions(out, errOut, featureGate, effectiveVersion)
 
-	o.ServerRunOptions.FeatureGate = featureGate
-	o.ServerRunOptions.EffectiveVersion = effectiveVersion
 	cmd := &cobra.Command{
 		Short: "Launch an API extensions API server",
 		Long:  "Launch an API extensions API server",
