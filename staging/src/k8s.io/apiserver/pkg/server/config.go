@@ -723,7 +723,7 @@ func (c *Config) Complete(informers informers.SharedInformerFactory) CompletedCo
 		} else {
 			c.EquivalentResourceRegistry = runtime.NewEquivalentResourceRegistryWithIdentity(func(groupResource schema.GroupResource) string {
 				// use the storage prefix as the key if possible
-				if opts, err := c.RESTOptionsGetter.GetRESTOptions(groupResource); err == nil {
+				if opts, err := c.RESTOptionsGetter.GetRESTOptions(groupResource, nil); err == nil {
 					return opts.ResourcePrefix
 				}
 				// otherwise return "" to use the default key (parent GV name)

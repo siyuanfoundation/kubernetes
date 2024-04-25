@@ -75,6 +75,7 @@ import (
 	discoveryclient "k8s.io/client-go/kubernetes/typed/discovery/v1"
 	"k8s.io/component-helpers/apimachinery/lease"
 	"k8s.io/klog/v2"
+	"k8s.io/kubernetes/pkg/apis/core"
 	api "k8s.io/kubernetes/pkg/apis/core"
 	flowcontrolv1 "k8s.io/kubernetes/pkg/apis/flowcontrol/v1"
 	flowcontrolv1beta1 "k8s.io/kubernetes/pkg/apis/flowcontrol/v1beta1"
@@ -283,7 +284,7 @@ func (c *Config) createLeaseReconciler() reconcilers.EndpointReconciler {
 	endpointsAdapter := reconcilers.NewEndpointsAdapter(endpointClient, endpointSliceClient)
 
 	ttl := c.ExtraConfig.MasterEndpointReconcileTTL
-	config, err := c.ExtraConfig.StorageFactory.NewConfig(api.Resource("apiServerIPInfo"))
+	config, err := c.ExtraConfig.StorageFactory.NewConfig(api.Resource("apiServerIPInfo"), &core.Endpoints{})
 	if err != nil {
 		klog.Fatalf("Error creating storage factory config: %v", err)
 	}
