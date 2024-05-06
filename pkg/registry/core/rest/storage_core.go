@@ -37,6 +37,7 @@ import (
 	networkingv1alpha1client "k8s.io/client-go/kubernetes/typed/networking/v1alpha1"
 	policyclient "k8s.io/client-go/kubernetes/typed/policy/v1"
 	"k8s.io/kubernetes/pkg/api/legacyscheme"
+	"k8s.io/kubernetes/pkg/apis/core"
 	api "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/cluster/ports"
 	"k8s.io/kubernetes/pkg/features"
@@ -321,7 +322,7 @@ func (p *legacyProvider) NewRESTStorage(apiResourceConfigSource serverstorage.AP
 func (c *Config) newServiceIPAllocators() (registries rangeRegistries, primaryClusterIPAllocator ipallocator.Interface, clusterIPAllocators map[api.IPFamily]ipallocator.Interface, nodePortAllocator *portallocator.PortAllocator, err error) {
 	clusterIPAllocators = map[api.IPFamily]ipallocator.Interface{}
 
-	serviceStorageConfig, err := c.StorageFactory.NewConfig(api.Resource("services"))
+	serviceStorageConfig, err := c.StorageFactory.NewConfig(api.Resource("services"), &core.Service{})
 	if err != nil {
 		return rangeRegistries{}, nil, nil, nil, err
 	}
