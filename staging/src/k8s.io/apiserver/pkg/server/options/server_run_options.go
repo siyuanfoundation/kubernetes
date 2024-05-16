@@ -26,7 +26,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apiserver/pkg/server"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	utilversion "k8s.io/apiserver/pkg/util/version"
 	"k8s.io/component-base/featuregate"
 
@@ -211,10 +210,8 @@ func (s *ServerRunOptions) Validate() []error {
 			errors = append(errors, errs...)
 		}
 	}
-	if s.EffectiveVersion != nil {
-		if errs := s.EffectiveVersion.Validate(); len(errs) != 0 {
-			errors = append(errors, errs...)
-		}
+	if errs := s.EffectiveVersion.Validate(); len(errs) != 0 {
+		errors = append(errors, errs...)
 	}
 	return errors
 }
@@ -361,11 +358,10 @@ func (s *ServerRunOptions) AddUniversalFlags(fs *pflag.FlagSet) {
 // Complete fills missing fields with defaults.
 func (s *ServerRunOptions) Complete() error {
 	if s.FeatureGate == nil {
-		s.FeatureGate = utilfeature.DefaultFeatureGate
+		return fmt.Errorf("nil FeatureGate in ServerRunOptions")
 	}
 	if s.EffectiveVersion == nil {
-		s.EffectiveVersion = utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(
-			utilversion.ComponentGenericAPIServer, utilversion.DefaultKubeEffectiveVersion())
+		return fmt.Errorf("nil EffectiveVersion in ServerRunOptions")
 	}
 	return nil
 }

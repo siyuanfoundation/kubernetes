@@ -262,6 +262,11 @@ func (v *Version) SubtractMinor(diff uint) *Version {
 	return MajorMinor(v.Major(), minor)
 }
 
+// AddMinor returns the version diff minor versions forward, with the same major and no patch.
+func (v *Version) AddMinor(diff uint) *Version {
+	return MajorMinor(v.Major(), v.Minor()+diff)
+}
+
 // WithPatch returns copy of the version object with requested patch number
 func (v *Version) WithPatch(patch uint) *Version {
 	result := *v

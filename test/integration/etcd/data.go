@@ -36,6 +36,7 @@ func GetEtcdStorageData() map[schema.GroupVersionResource]StorageData {
 // It is exported so that it can be reused across multiple tests.
 // It returns a new map on every invocation to prevent different tests from mutating shared state.
 // Namespaced objects keys are computed for the specified namespace.
+// The resources listed are available for the DefaultKubeEffectiveVersion used in test. May need to be refreshed if the version changes.
 func GetEtcdStorageDataForNamespace(namespace string) map[schema.GroupVersionResource]StorageData {
 	image := image.GetE2EImage(image.BusyBox)
 	etcdStorageData := map[schema.GroupVersionResource]StorageData{

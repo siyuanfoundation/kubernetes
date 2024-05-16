@@ -65,7 +65,7 @@ type Extra struct {
 	MasterCount int
 }
 
-// NewServerRunOptions creates a new ServerRunOptions object with default parameters
+// NewServerRunOptions creates and returns ServerRunOptions according to the given featureGate and effectiveVersion of the server binary to run.
 func NewServerRunOptions(featureGate featuregate.FeatureGate, effectiveVersion utilversion.EffectiveVersion) *ServerRunOptions {
 	s := ServerRunOptions{
 		Options:       controlplaneapiserver.NewOptions(featureGate, effectiveVersion),

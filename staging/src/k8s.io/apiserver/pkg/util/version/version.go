@@ -90,6 +90,8 @@ type EffectiveVersion interface {
 type MutableEffectiveVersion interface {
 	EffectiveVersion
 	Set(binaryVersion, emulationVersion, minCompatibilityVersion *version.Version)
+	SetEmulationVersion(emulationVersion *version.Version)
+	SetMinCompatibilityVersion(minCompatibilityVersion *version.Version)
 	// AddFlags adds the "{prefix}-emulated-version" to the flagset.
 	AddFlags(fs *pflag.FlagSet, prefix string)
 }
@@ -162,6 +164,14 @@ func (m *effectiveVersion) String() string {
 func (m *effectiveVersion) Set(binaryVersion, emulationVersion, minCompatibilityVersion *version.Version) {
 	m.binaryVersion.Store(binaryVersion)
 	m.emulationVersion.val.Store(version.MajorMinor(emulationVersion.Major(), emulationVersion.Minor()))
+	m.minCompatibilityVersion.val.Store(version.MajorMinor(minCompatibilityVersion.Major(), minCompatibilityVersion.Minor()))
+}
+
+func (m *effectiveVersion) SetEmulationVersion(emulationVersion *version.Version) {
+	m.emulationVersion.val.Store(version.MajorMinor(emulationVersion.Major(), emulationVersion.Minor()))
+}
+
+func (m *effectiveVersion) SetMinCompatibilityVersion(minCompatibilityVersion *version.Version) {
 	m.minCompatibilityVersion.val.Store(version.MajorMinor(minCompatibilityVersion.Major(), minCompatibilityVersion.Minor()))
 }
 

@@ -18,6 +18,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -27,11 +28,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/apiserver/pkg/endpoints/openapi"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	utilversion "k8s.io/apiserver/pkg/util/version"
+	"k8s.io/component-base/featuregate"
 	"k8s.io/sample-apiserver/pkg/admission/plugin/banflunder"
 	"k8s.io/sample-apiserver/pkg/admission/wardleinitializer"
 	"k8s.io/sample-apiserver/pkg/apis/wardle/v1alpha1"
@@ -53,6 +57,26 @@ type WardleServerOptions struct {
 	StdErr                io.Writer
 
 	AlternateDNS []string
+	// FeatureGate is the instance of feature gate to be passed into the generic api server.
+	FeatureGate featuregate.MutableVersionedFeatureGate
+}
+
+func mapWardleEffectiveVersionToKubeEffectiveVersion(wardleVer utilversion.MutableEffectiveVersion) (utilversion.MutableEffectiveVersion, error) {
+	// the kube binary version should just be the one gotten from go.mod dependency.
+	kubeVer := utilversion.DefaultKubeEffectiveVersion()
+	// map from wardle emulation version to kube emulation version.
+	emulationVersionMap := map[string]string{
+		"1.2": kubeVer.BinaryVersion().AddMinor(1).String(),
+		"1.1": kubeVer.BinaryVersion().String(),
+		"1.0": kubeVer.BinaryVersion().SubtractMinor(1).String(),
+	}
+	wardleEmulationVer := wardleVer.EmulationVersion()
+	if kubeEmulationVer, ok := emulationVersionMap[wardleEmulationVer.String()]; ok {
+		kubeVer.SetEmulationVersion(version.MustParse(kubeEmulationVer))
+	} else {
+		return nil, fmt.Errorf("cannot find mapping from wardle emulation version: %s to kube version", wardleVer.EmulationVersion().String())
+	}
+	return kubeVer, nil
 }
 
 // NewWardleServerOptions returns a new WardleServerOptions
@@ -63,8 +87,9 @@ func NewWardleServerOptions(out, errOut io.Writer) *WardleServerOptions {
 			apiserver.Codecs.LegacyCodec(v1alpha1.SchemeGroupVersion),
 		),
 
-		StdOut: out,
-		StdErr: errOut,
+		StdOut:      out,
+		StdErr:      errOut,
+		FeatureGate: utilfeature.DefaultMutableFeatureGate,
 	}
 	o.RecommendedOptions.Etcd.StorageConfig.EncodeVersioner = runtime.NewMultiGroupVersioner(v1alpha1.SchemeGroupVersion, schema.GroupKind{Group: v1alpha1.GroupName})
 	return o
@@ -94,7 +119,12 @@ func NewCommandStartWardleServer(ctx context.Context, defaults *WardleServerOpti
 
 	flags := cmd.Flags()
 	o.RecommendedOptions.AddFlags(flags)
-	utilfeature.DefaultMutableFeatureGate.AddFlag(flags)
+
+	wardleEffectiveVersion := utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(
+		"wardle-server", utilversion.NewEffectiveVersion("1.2"))
+	wardleEffectiveVersion.AddFlags(flags, "wardle-")
+	o.FeatureGate.DeferErrorsToValidation(true)
+	o.FeatureGate.AddFlag(flags)
 
 	return cmd
 }
@@ -103,6 +133,7 @@ func NewCommandStartWardleServer(ctx context.Context, defaults *WardleServerOpti
 func (o WardleServerOptions) Validate(args []string) error {
 	errors := []error{}
 	errors = append(errors, o.RecommendedOptions.Validate()...)
+	errors = append(errors, o.FeatureGate.Validate()...)
 	return utilerrors.NewAggregate(errors)
 }
 
@@ -113,6 +144,19 @@ func (o *WardleServerOptions) Complete() error {
 
 	// add admission plugins to the RecommendedPluginOrder
 	o.RecommendedOptions.Admission.RecommendedPluginOrder = append(o.RecommendedOptions.Admission.RecommendedPluginOrder, "BanFlunder")
+
+	// convert wardle effective version to kube effective version to be used in generic api server, and set the generic api server feature gate.
+	kubeEffectiveVersion, err := mapWardleEffectiveVersionToKubeEffectiveVersion(utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionFor("wardle-server"))
+	if err != nil {
+		return err
+	}
+	if errs := kubeEffectiveVersion.Validate(); len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	utilversion.DefaultEffectiveVersionRegistry.RegisterEffectiveVersionFor(utilversion.ComponentGenericAPIServer, kubeEffectiveVersion)
+	if err := o.FeatureGate.SetEmulationVersion(kubeEffectiveVersion.EmulationVersion()); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -143,6 +187,9 @@ func (o *WardleServerOptions) Config() (*apiserver.Config, error) {
 	serverConfig.OpenAPIV3Config = genericapiserver.DefaultOpenAPIV3Config(sampleopenapi.GetOpenAPIDefinitions, openapi.NewDefinitionNamer(apiserver.Scheme))
 	serverConfig.OpenAPIV3Config.Info.Title = "Wardle"
 	serverConfig.OpenAPIV3Config.Info.Version = "0.1"
+
+	serverConfig.FeatureGate = o.FeatureGate
+	serverConfig.EffectiveVersion = utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionFor(utilversion.ComponentGenericAPIServer)
 
 	if err := o.RecommendedOptions.ApplyTo(serverConfig); err != nil {
 		return nil, err
