@@ -40,7 +40,8 @@ var (
 	Scheme = runtime.NewScheme()
 	// Codecs provides methods for retrieving codecs and serializers for specific
 	// versions and content types.
-	Codecs = serializer.NewCodecFactory(Scheme)
+	Codecs              = serializer.NewCodecFactory(Scheme)
+	WardleComponentName = "wardle-server"
 )
 
 func init() {
@@ -93,7 +94,7 @@ func (cfg *Config) Complete() CompletedConfig {
 		cfg.GenericConfig.Complete(),
 		&cfg.ExtraConfig,
 	}
-	wardleEffectiveVersion := utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionFor("wardle-server")
+	wardleEffectiveVersion := utilversion.DefaultComponentGlobalsRegistry.EffectiveVersionFor(WardleComponentName)
 	c.GenericConfig.Version = &version.Info{
 		Major: strconv.Itoa(int(wardleEffectiveVersion.BinaryVersion().Major())),
 		Minor: strconv.Itoa(int(wardleEffectiveVersion.BinaryVersion().Minor())),

@@ -182,20 +182,19 @@ func StartTestServer(t ktesting.TB, instanceOptions *TestServerInstanceOptions, 
 	fs := pflag.NewFlagSet("test", pflag.PanicOnError)
 
 	featureGate := utilfeature.DefaultMutableFeatureGate
-	featureGate.DeferErrorsToValidation(true)
 	binaryVersion := utilversion.DefaultKubeEffectiveVersion().BinaryVersion().String()
 	if instanceOptions.BinaryVersion != "" {
 		binaryVersion = instanceOptions.BinaryVersion
 	}
 	effectiveVersion := utilversion.NewEffectiveVersion(binaryVersion)
-	utilversion.DefaultEffectiveVersionRegistry.RegisterEffectiveVersionFor(utilversion.ComponentGenericAPIServer, effectiveVersion)
+	_ = utilversion.DefaultComponentGlobalsRegistry.Register(utilversion.ComponentGenericAPIServer, effectiveVersion, featureGate, true)
 
 	s := options.NewServerRunOptions(featureGate, effectiveVersion)
 
 	for _, f := range s.Flags().FlagSets {
 		fs.AddFlagSet(f)
 	}
-	featureGate.AddFlag(fs)
+	featureGate.AddFlag(fs, "")
 	effectiveVersion.AddFlags(fs, "")
 
 	s.SecureServing.Listener, s.SecureServing.BindPort, err = createLocalhostListenerOnFreePort()
@@ -337,7 +336,7 @@ func StartTestServer(t ktesting.TB, instanceOptions *TestServerInstanceOptions, 
 		return result, err
 	}
 
-	if err := featureGate.SetEmulationVersion(effectiveVersion.EmulationVersion()); err != nil {
+	if err := utilversion.DefaultComponentGlobalsRegistry.SetAllComponents(); err != nil {
 		return result, err
 	}
 

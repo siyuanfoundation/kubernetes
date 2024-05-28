@@ -123,12 +123,11 @@ func StartTestServer(t Logger, _ *TestServerInstanceOptions, customFlags []strin
 	fs := pflag.NewFlagSet("test", pflag.PanicOnError)
 
 	featureGate := utilfeature.DefaultMutableFeatureGate
-	effectiveVersion := utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(
-		utilversion.ComponentGenericAPIServer, utilversion.DefaultKubeEffectiveVersion())
-	featureGate.DeferErrorsToValidation(true)
+	effectiveVersion := utilversion.DefaultKubeEffectiveVersion()
+	_ = utilversion.DefaultComponentGlobalsRegistry.Register(utilversion.ComponentGenericAPIServer, effectiveVersion, featureGate, true)
 	s := options.NewCustomResourceDefinitionsServerOptions(os.Stdout, os.Stderr, featureGate, effectiveVersion)
 
-	featureGate.AddFlag(fs)
+	featureGate.AddFlag(fs, "")
 	effectiveVersion.AddFlags(fs, "")
 	s.AddFlags(fs)
 
@@ -152,7 +151,7 @@ func StartTestServer(t Logger, _ *TestServerInstanceOptions, customFlags []strin
 
 	fs.Parse(customFlags)
 
-	if err := featureGate.SetEmulationVersion(effectiveVersion.EmulationVersion()); err != nil {
+	if err := utilversion.DefaultComponentGlobalsRegistry.SetAllComponents(); err != nil {
 		return result, err
 	}
 

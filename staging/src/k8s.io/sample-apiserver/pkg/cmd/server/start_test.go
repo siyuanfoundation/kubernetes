@@ -21,6 +21,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/version"
 	utilversion "k8s.io/apiserver/pkg/util/version"
+	"k8s.io/sample-apiserver/pkg/apiserver"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -28,6 +29,7 @@ import (
 func TestMapBinaryEffectiveVersionToKubeEffectiveVersion(t *testing.T) {
 	wardleEffectiveVersion := utilversion.NewEffectiveVersion("1.2")
 	defaultKubeEffectiveVersion := utilversion.DefaultKubeEffectiveVersion()
+
 	testCases := []struct {
 		desc                     string
 		wardleEmulationVer       *version.Version
@@ -46,14 +48,18 @@ func TestMapBinaryEffectiveVersionToKubeEffectiveVersion(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
+			registry := utilversion.NewComponentGlobalsRegistry()
+			_ = registry.Register(apiserver.WardleComponentName, wardleEffectiveVersion, nil, true)
+			_ = registry.Register(utilversion.ComponentGenericAPIServer, defaultKubeEffectiveVersion, nil, true)
+
 			wardleEffectiveVersion.SetEmulationVersion(tc.wardleEmulationVer)
-			kubeVer, err := mapWardleEffectiveVersionToKubeEffectiveVersion(wardleEffectiveVersion)
+			err := mapWardleEffectiveVersionToKubeEffectiveVersion(registry)
 			if tc.expectedKubeEmulationVer == nil {
 				if err == nil {
 					t.Fatal("expected error, no error found")
 				}
 			} else {
-				assert.True(t, kubeVer.EmulationVersion().EqualTo(tc.expectedKubeEmulationVer))
+				assert.True(t, registry.EffectiveVersionFor(utilversion.ComponentGenericAPIServer).EmulationVersion().EqualTo(tc.expectedKubeEmulationVer))
 			}
 		})
 	}

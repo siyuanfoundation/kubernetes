@@ -52,7 +52,7 @@ func TestAddFlags(t *testing.T) {
 	for _, f := range fss.FlagSets {
 		fs.AddFlagSet(f)
 	}
-	featureGate.AddFlag(fs)
+	featureGate.AddFlag(fs, "")
 	effectiveVersion.AddFlags(fs, "")
 
 	args := []string{

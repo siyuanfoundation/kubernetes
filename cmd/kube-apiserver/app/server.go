@@ -64,10 +64,8 @@ func init() {
 
 // NewAPIServerCommand creates a *cobra.Command object with default parameters
 func NewAPIServerCommand() *cobra.Command {
-	featureGate := utilfeature.DefaultMutableFeatureGate
-	featureGate.DeferErrorsToValidation(true)
-	effectiveVersion := utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(
-		utilversion.ComponentGenericAPIServer, utilversion.DefaultBuildEffectiveVersion())
+	effectiveVersion, featureGate := utilversion.DefaultComponentGlobalsRegistry.ComponentGlobalsOrRegister(
+		utilversion.ComponentGenericAPIServer, utilversion.DefaultBuildEffectiveVersion(), utilfeature.DefaultMutableFeatureGate)
 	s := options.NewServerRunOptions(featureGate, effectiveVersion)
 
 	cmd := &cobra.Command{
@@ -89,7 +87,7 @@ cluster's shared state through which all other components interact.`,
 			verflag.PrintAndExitIfRequested()
 			fs := cmd.Flags()
 
-			if err := featureGate.SetEmulationVersion(effectiveVersion.EmulationVersion()); err != nil {
+			if err := utilversion.DefaultComponentGlobalsRegistry.SetAllComponents(); err != nil {
 				return err
 			}
 
@@ -128,7 +126,7 @@ cluster's shared state through which all other components interact.`,
 	fs := cmd.Flags()
 	namedFlagSets := s.Flags()
 	verflag.AddFlags(namedFlagSets.FlagSet("global"))
-	featureGate.AddFlag(namedFlagSets.FlagSet("global"))
+	featureGate.AddFlag(namedFlagSets.FlagSet("global"), "")
 	effectiveVersion.AddFlags(namedFlagSets.FlagSet("global"), "")
 
 	globalflag.AddGlobalFlags(namedFlagSets.FlagSet("global"), cmd.Name(), logs.SkipLoggingConfigurationFlags())

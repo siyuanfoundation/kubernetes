@@ -66,8 +66,7 @@ func (a *APIServer) Start(ctx context.Context) error {
 	const tokenFilePath = "known_tokens.csv"
 
 	featureGate := utilfeature.DefaultFeatureGate
-	effectiveVersion := utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(
-		utilversion.ComponentGenericAPIServer, utilversion.DefaultKubeEffectiveVersion())
+	effectiveVersion := utilversion.DefaultKubeEffectiveVersion()
 	o := options.NewServerRunOptions(featureGate, effectiveVersion)
 	o.Etcd.StorageConfig = a.storageConfig
 	_, ipnet, err := netutils.ParseCIDRSloppy(clusterIPRange)

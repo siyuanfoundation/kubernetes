@@ -63,12 +63,11 @@ func NewCommandStartAggregator(ctx context.Context, defaults *AggregatorOptions)
 	o := *defaults
 	featureGate := o.ServerRunOptions.FeatureGate.(featuregate.MutableVersionedFeatureGate)
 	effectiveVersion := o.ServerRunOptions.EffectiveVersion.(utilversion.MutableEffectiveVersion)
-	featureGate.DeferErrorsToValidation(true)
 	cmd := &cobra.Command{
 		Short: "Launch a API aggregator and proxy server",
 		Long:  "Launch a API aggregator and proxy server",
 		RunE: func(c *cobra.Command, args []string) error {
-			if err := featureGate.SetEmulationVersion(effectiveVersion.EmulationVersion()); err != nil {
+			if err := utilversion.DefaultComponentGlobalsRegistry.SetAllComponents(); err != nil {
 				return err
 			}
 			if err := o.Complete(); err != nil {
@@ -86,7 +85,7 @@ func NewCommandStartAggregator(ctx context.Context, defaults *AggregatorOptions)
 	cmd.SetContext(ctx)
 
 	fs := cmd.Flags()
-	featureGate.AddFlag(fs)
+	featureGate.AddFlag(fs, "")
 	effectiveVersion.AddFlags(fs, "")
 
 	o.AddFlags(fs)
@@ -104,12 +103,11 @@ func (o *AggregatorOptions) AddFlags(fs *pflag.FlagSet) {
 
 // NewDefaultOptions builds a "normal" set of options.  You wouldn't normally expose this, but hyperkube isn't cobra compatible
 func NewDefaultOptions(out, err io.Writer) *AggregatorOptions {
-	featureGate := utilfeature.DefaultMutableFeatureGate
 	// effectiveVersion is used to set what apis and feature gates the generic api server is compatible with.
 	// You can also have the flag setting the effectiveVersion of the aggregator apiserver, and
 	// having a mapping from the aggregator apiserver version to generic apiserver version.
-	effectiveVersion := utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(
-		utilversion.ComponentGenericAPIServer, utilversion.DefaultKubeEffectiveVersion())
+	effectiveVersion, featureGate := utilversion.DefaultComponentGlobalsRegistry.ComponentGlobalsOrRegister(
+		utilversion.ComponentGenericAPIServer, utilversion.DefaultKubeEffectiveVersion(), utilfeature.DefaultMutableFeatureGate)
 	o := &AggregatorOptions{
 		ServerRunOptions: genericoptions.NewServerRunOptions(featureGate, effectiveVersion),
 		RecommendedOptions: genericoptions.NewRecommendedOptions(

@@ -25,28 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/version"
 )
 
-func TestEffectiveVersionRegistry(t *testing.T) {
-	r := NewEffectiveVersionRegistry()
-	testComponent := "test"
-	ver1 := NewEffectiveVersion("1.31")
-	ver2 := NewEffectiveVersion("1.28")
-
-	if r.EffectiveVersionFor(testComponent) != nil {
-		t.Fatalf("expected nil EffectiveVersion initially")
-	}
-	if !r.EffectiveVersionForOrRegister(testComponent, ver1).EqualTo(ver1) {
-		t.Fatalf("expected EffectiveVersionForOrRegister to return the version specified")
-	}
-	// overwrite
-	r.RegisterEffectiveVersionFor(testComponent, ver2)
-	if !r.EffectiveVersionFor(testComponent).EqualTo(ver2) {
-		t.Fatalf("expected EffectiveVersion to be %s", ver2.String())
-	}
-	if !r.EffectiveVersionForOrRegister(testComponent, ver1).EqualTo(ver2) {
-		t.Fatalf("expected EffectiveVersionForOrRegister to return the version already registered")
-	}
-}
-
 func TestValidate(t *testing.T) {
 	tests := []struct {
 		name                    string

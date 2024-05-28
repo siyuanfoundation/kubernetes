@@ -94,8 +94,7 @@ func StartRealAPIServerOrDie(t *testing.T, configFuncs ...func(*options.ServerRu
 	}
 
 	featureGate := utilfeature.DefaultFeatureGate
-	effectiveVersion := utilversion.DefaultEffectiveVersionRegistry.EffectiveVersionForOrRegister(
-		utilversion.ComponentGenericAPIServer, utilversion.DefaultBuildEffectiveVersion())
+	effectiveVersion := utilversion.DefaultBuildEffectiveVersion()
 	opts := options.NewServerRunOptions(featureGate, effectiveVersion)
 	opts.Options.SecureServing.Listener = listener
 	opts.Options.SecureServing.ServerCert.CertDirectory = certDir

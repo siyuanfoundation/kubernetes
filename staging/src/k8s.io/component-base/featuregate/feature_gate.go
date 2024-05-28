@@ -125,7 +125,7 @@ type MutableFeatureGate interface {
 	FeatureGate
 
 	// AddFlag adds a flag for setting global feature gates to the specified FlagSet.
-	AddFlag(fs *pflag.FlagSet)
+	AddFlag(fs *pflag.FlagSet, prefix string)
 	// Set parses and stores flag gates for known features
 	// from a string like feature1=true,feature2=false,...
 	Set(value string) error
@@ -578,7 +578,7 @@ func getCurrentVersion(v VersionedSpecs, emulationVersion *version.Version) *Fea
 }
 
 // AddFlag adds a flag for setting global feature gates to the specified FlagSet.
-func (f *featureGate) AddFlag(fs *pflag.FlagSet) {
+func (f *featureGate) AddFlag(fs *pflag.FlagSet, prefix string) {
 	f.lock.Lock()
 	// TODO(mtaufen): Shouldn't we just close it on the first Set/SetFromMap instead?
 	// Not all components expose a feature gates flag using this AddFlag method, and
@@ -588,7 +588,10 @@ func (f *featureGate) AddFlag(fs *pflag.FlagSet) {
 	f.lock.Unlock()
 
 	known := f.KnownFeatures()
-	fs.Var(f, flagName, ""+
+	if len(prefix) > 0 && !strings.HasSuffix(prefix, "-") {
+		prefix += "-"
+	}
+	fs.Var(f, prefix+flagName, ""+
 		"A set of key=value pairs that describe feature gates for alpha/experimental features. "+
 		"Options are:\n"+strings.Join(known, "\n"))
 }

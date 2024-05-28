@@ -19,64 +19,12 @@ package version
 import (
 	"fmt"
 	"strings"
-	"sync"
 	"sync/atomic"
 
 	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/util/version"
 	baseversion "k8s.io/component-base/version"
 )
-
-var DefaultEffectiveVersionRegistry EffectiveVersionRegistry = NewEffectiveVersionRegistry()
-
-const (
-	ComponentGenericAPIServer = "k8s.io/apiserver"
-)
-
-type EffectiveVersionRegistry interface {
-	// EffectiveVersionFor returns the EffectiveVersion registered under the component.
-	// Returns nil if the component is not registered.
-	EffectiveVersionFor(component string) MutableEffectiveVersion
-	// EffectiveVersionForOrRegister returns the EffectiveVersion registered under the component if it is already registered
-	// (ignoring any conflict between the registered version and the provided version).
-	// If the component is not registered, it would register the provided ver under the component, and return the same ver.
-	EffectiveVersionForOrRegister(component string, ver MutableEffectiveVersion) MutableEffectiveVersion
-	// RegisterEffectiveVersionFor registers the EffectiveVersion for a component.
-	// Overrides existing EffectiveVersion if it is already in the registry.
-	RegisterEffectiveVersionFor(component string, ver MutableEffectiveVersion)
-}
-
-type effectiveVersionRegistry struct {
-	effectiveVersions map[string]MutableEffectiveVersion
-	mutex             sync.RWMutex
-}
-
-func NewEffectiveVersionRegistry() EffectiveVersionRegistry {
-	return &effectiveVersionRegistry{effectiveVersions: map[string]MutableEffectiveVersion{}}
-}
-
-func (r *effectiveVersionRegistry) EffectiveVersionFor(component string) MutableEffectiveVersion {
-	r.mutex.RLock()
-	defer r.mutex.RUnlock()
-	return r.effectiveVersions[component]
-}
-
-func (r *effectiveVersionRegistry) EffectiveVersionForOrRegister(component string, ver MutableEffectiveVersion) MutableEffectiveVersion {
-	r.mutex.RLock()
-	v, ok := r.effectiveVersions[component]
-	r.mutex.RUnlock()
-	if ok {
-		return v
-	}
-	r.RegisterEffectiveVersionFor(component, ver)
-	return ver
-}
-
-func (r *effectiveVersionRegistry) RegisterEffectiveVersionFor(component string, ver MutableEffectiveVersion) {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-	r.effectiveVersions[component] = ver
-}
 
 type EffectiveVersion interface {
 	BinaryVersion() *version.Version
