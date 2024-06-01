@@ -205,8 +205,8 @@ func setUnsetAlphaGates(known map[Feature]VersionedSpecs, enabled map[Feature]bo
 		if k == "AllAlpha" || k == "AllBeta" {
 			continue
 		}
-		currentVersion := getCurrentVersion(v, cVer)
-		if currentVersion.PreRelease == Alpha {
+		featureSpec := featureSpecAtEmulationVersion(v, cVer)
+		if featureSpec.PreRelease == Alpha {
 			if _, found := enabled[k]; !found {
 				enabled[k] = val
 			}
@@ -219,8 +219,8 @@ func setUnsetBetaGates(known map[Feature]VersionedSpecs, enabled map[Feature]boo
 		if k == "AllAlpha" || k == "AllBeta" {
 			continue
 		}
-		currentVersion := getCurrentVersion(v, cVer)
-		if currentVersion.PreRelease == Beta {
+		featureSpec := featureSpecAtEmulationVersion(v, cVer)
+		if featureSpec.PreRelease == Beta {
 			if _, found := enabled[k]; !found {
 				enabled[k] = val
 			}
@@ -312,9 +312,9 @@ func (f *featureGate) unsafeSetFromMap(enabled map[Feature]bool, m map[string]bo
 			errs = append(errs, fmt.Errorf("unrecognized feature gate: %s", k))
 			return errs
 		}
-		currentVersion := f.getCurrentVersion(versionedSpecs)
-		if currentVersion.LockToDefault && currentVersion.Default != v {
-			errs = append(errs, fmt.Errorf("cannot set feature gate %v to %v, feature is locked to %v", k, v, currentVersion.Default))
+		featureSpec := f.featureSpecAtEmulationVersion(versionedSpecs)
+		if featureSpec.LockToDefault && featureSpec.Default != v {
+			errs = append(errs, fmt.Errorf("cannot set feature gate %v to %v, feature is locked to %v", k, v, featureSpec.Default))
 			continue
 		}
 		// Handle "special" features like "all alpha gates"
@@ -323,15 +323,15 @@ func (f *featureGate) unsafeSetFromMap(enabled map[Feature]bool, m map[string]bo
 			enabled[key] = v
 			continue
 		}
-		if currentVersion.PreRelease == PreAlpha {
+		if featureSpec.PreRelease == PreAlpha {
 			errs = append(errs, fmt.Errorf("cannot set feature gate %v to %v, feature is PreAlpha at emulated version %s", k, v, f.EmulationVersion().String()))
 			continue
 		}
 		enabled[key] = v
 
-		if currentVersion.PreRelease == Deprecated {
+		if featureSpec.PreRelease == Deprecated {
 			klog.Warningf("Setting deprecated feature gate %s=%t. It will be removed in a future release.", k, v)
-		} else if currentVersion.PreRelease == GA {
+		} else if featureSpec.PreRelease == GA {
 			klog.Warningf("Setting GA feature gate %s=%t. It will be removed in a future release.", k, v)
 		}
 	}
@@ -446,7 +446,7 @@ func (f *featureGate) OverrideDefault(name Feature, override bool) error {
 	if !ok {
 		return fmt.Errorf("cannot override default: feature %q is not registered", name)
 	}
-	spec := f.getCurrentVersion(specs)
+	spec := f.featureSpecAtEmulationVersion(specs)
 	switch {
 	case spec.LockToDefault:
 		return fmt.Errorf("cannot override default: feature %q default is locked to %t", name, spec.Default)
@@ -469,12 +469,12 @@ func (f *featureGate) OverrideDefault(name Feature, override bool) error {
 func (f *featureGate) GetAll() map[Feature]FeatureSpec {
 	retval := map[Feature]FeatureSpec{}
 	for k, v := range f.GetAllVersioned() {
-		spec := f.getCurrentVersion(v)
+		spec := f.featureSpecAtEmulationVersion(v)
 		if spec.PreRelease == PreAlpha {
 			// The feature is not available at the emulation version.
 			continue
 		}
-		retval[k] = *f.getCurrentVersion(v)
+		retval[k] = *f.featureSpecAtEmulationVersion(v)
 	}
 	return retval
 }
@@ -514,10 +514,11 @@ func (f *featureGate) EmulationVersion() *version.Version {
 }
 
 // FeatureSpec returns the FeatureSpec at the EmulationVersion if the key exists, an error otherwise.
+// This is useful to keep multiple implementations of a feature based on the PreRelease or Version info.
 func (f *featureGate) FeatureSpec(key Feature) (FeatureSpec, error) {
 	if v, ok := f.known.Load().(map[Feature]VersionedSpecs)[key]; ok {
-		currentVersion := f.getCurrentVersion(v)
-		return *currentVersion, nil
+		featureSpec := f.featureSpecAtEmulationVersion(v)
+		return *featureSpec, nil
 	}
 	return FeatureSpec{}, fmt.Errorf("feature %q is not registered in FeatureGate %q", key, f.featureGateName)
 }
@@ -529,17 +530,17 @@ func (f *featureGate) Enabled(key Feature) bool {
 		return v
 	}
 	if v, ok := f.known.Load().(map[Feature]VersionedSpecs)[key]; ok {
-		return f.getCurrentVersion(v).Default
+		return f.featureSpecAtEmulationVersion(v).Default
 	}
 
 	panic(fmt.Errorf("feature %q is not registered in FeatureGate %q", key, f.featureGateName))
 }
 
-func (f *featureGate) getCurrentVersion(v VersionedSpecs) *FeatureSpec {
-	return getCurrentVersion(v, f.EmulationVersion())
+func (f *featureGate) featureSpecAtEmulationVersion(v VersionedSpecs) *FeatureSpec {
+	return featureSpecAtEmulationVersion(v, f.EmulationVersion())
 }
 
-func getCurrentVersion(v VersionedSpecs, emulationVersion *version.Version) *FeatureSpec {
+func featureSpecAtEmulationVersion(v VersionedSpecs, emulationVersion *version.Version) *FeatureSpec {
 	i := len(v) - 1
 	for ; i >= 0; i-- {
 		if v[i].Version.GreaterThan(emulationVersion) {
@@ -590,11 +591,11 @@ func (f *featureGate) KnownFeatures() []string {
 			known = append(known, fmt.Sprintf("%s=true|false (%s - default=%t)", k, v[0].PreRelease, v[0].Default))
 			continue
 		}
-		currentV := f.getCurrentVersion(v)
-		if currentV.PreRelease == GA || currentV.PreRelease == Deprecated || currentV.PreRelease == PreAlpha {
+		featureSpec := f.featureSpecAtEmulationVersion(v)
+		if featureSpec.PreRelease == GA || featureSpec.PreRelease == Deprecated || featureSpec.PreRelease == PreAlpha {
 			continue
 		}
-		known = append(known, fmt.Sprintf("%s=true|false (%s - default=%t)", k, currentV.PreRelease, currentV.Default))
+		known = append(known, fmt.Sprintf("%s=true|false (%s - default=%t)", k, featureSpec.PreRelease, featureSpec.Default))
 	}
 	sort.Strings(known)
 	return known

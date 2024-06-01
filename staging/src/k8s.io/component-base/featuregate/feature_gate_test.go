@@ -1433,7 +1433,7 @@ func TestVersionedFeatureGateOverrideDefault(t *testing.T) {
 	})
 }
 
-func TestGetCurrentVersion(t *testing.T) {
+func TestFeatureSpecAtEmulationVersion(t *testing.T) {
 	specs := VersionedSpecs{{Version: version.MustParse("1.29"), Default: true, PreRelease: GA},
 		{Version: version.MustParse("1.28"), Default: false, PreRelease: Beta},
 		{Version: version.MustParse("1.25"), Default: false, PreRelease: Alpha},
@@ -1469,10 +1469,10 @@ func TestGetCurrentVersion(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		t.Run(fmt.Sprintf("getCurrentVersion for emulationVersion %s", test.cVersion), func(t *testing.T) {
-			result := getCurrentVersion(specs, version.MustParse(test.cVersion))
+		t.Run(fmt.Sprintf("featureSpecAtEmulationVersion for emulationVersion %s", test.cVersion), func(t *testing.T) {
+			result := featureSpecAtEmulationVersion(specs, version.MustParse(test.cVersion))
 			if !reflect.DeepEqual(*result, test.expect) {
-				t.Errorf("%d: getCurrentVersion(, %s) Expected %v, Got %v", i, test.cVersion, test.expect, result)
+				t.Errorf("%d: featureSpecAtEmulationVersion(, %s) Expected %v, Got %v", i, test.cVersion, test.expect, result)
 			}
 		})
 	}

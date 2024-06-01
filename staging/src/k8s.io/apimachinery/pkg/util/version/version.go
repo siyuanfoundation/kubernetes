@@ -252,19 +252,30 @@ func (v *Version) WithMinor(minor uint) *Version {
 	return &result
 }
 
-// SubtractMinor returns the version diff minor versions back, with the same major and no patch.
-// If diff >= current minor, the minor would be 0.
-func (v *Version) SubtractMinor(diff uint) *Version {
+// SubtractMinor returns the version with offset from the original minor, with the same major and no patch.
+// If -offset >= current minor, the minor would be 0.
+func (v *Version) OffsetMinor(offset int) *Version {
 	var minor uint
-	if diff < v.Minor() {
-		minor = v.Minor() - diff
+	if offset >= 0 {
+		minor = v.Minor() + uint(offset)
+	} else {
+		diff := uint(-offset)
+		if diff < v.Minor() {
+			minor = v.Minor() - diff
+		}
 	}
 	return MajorMinor(v.Major(), minor)
 }
 
+// SubtractMinor returns the version diff minor versions back, with the same major and no patch.
+// If diff >= current minor, the minor would be 0.
+func (v *Version) SubtractMinor(diff uint) *Version {
+	return v.OffsetMinor(-int(diff))
+}
+
 // AddMinor returns the version diff minor versions forward, with the same major and no patch.
 func (v *Version) AddMinor(diff uint) *Version {
-	return MajorMinor(v.Major(), v.Minor()+diff)
+	return v.OffsetMinor(int(diff))
 }
 
 // WithPatch returns copy of the version object with requested patch number
