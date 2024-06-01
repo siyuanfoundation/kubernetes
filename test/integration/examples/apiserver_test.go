@@ -226,6 +226,15 @@ func TestAPIServiceWaitOnStart(t *testing.T) {
 }
 
 func TestAggregatedAPIServer(t *testing.T) {
+	t.Run("WithoutWardleFeatureGate", func(t *testing.T) {
+		testAggregatedAPIServer(t, false)
+	})
+	t.Run("WithWardleFeatureGate", func(t *testing.T) {
+		testAggregatedAPIServer(t, true)
+	})
+}
+
+func testAggregatedAPIServer(t *testing.T, enableWardleFeatureGate bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	t.Cleanup(cancel)
 
@@ -286,15 +295,18 @@ func TestAggregatedAPIServer(t *testing.T) {
 		o.RecommendedOptions.SecureServing.Listener = listener
 		o.RecommendedOptions.SecureServing.BindAddress = netutils.ParseIPSloppy("127.0.0.1")
 		wardleCmd := sampleserver.NewCommandStartWardleServer(ctx, o)
-		wardleCmd.SetArgs([]string{
+		args := []string{
 			"--authentication-kubeconfig", wardleToKASKubeConfigFile,
 			"--authorization-kubeconfig", wardleToKASKubeConfigFile,
 			"--etcd-servers", framework.GetEtcdURL(),
 			"--cert-dir", wardleCertDir,
 			"--kubeconfig", wardleToKASKubeConfigFile,
 			"--emulated-version", "wardle=1.1",
-			"--feature-gates", "wardle:BanFlunder=true",
-		})
+		}
+		if enableWardleFeatureGate {
+			args = append(args, "--feature-gates", "wardle:BanFlunder=true")
+		}
+		wardleCmd.SetArgs(args)
 		if err := wardleCmd.Execute(); err != nil {
 			t.Error(err)
 		}
@@ -393,6 +405,8 @@ func TestAggregatedAPIServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// clean up data after test is done
+	defer wardleClient.Fischers().Delete(ctx, "panda", metav1.DeleteOptions{})
 	fischersList, err := wardleClient.Fischers().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -409,8 +423,15 @@ func TestAggregatedAPIServer(t *testing.T) {
 			Name: "badname",
 		},
 	}, metav1.CreateOptions{})
-	if err == nil {
-		t.Fatal("expect flunder:badname not admitted")
+	if enableWardleFeatureGate && err == nil {
+		t.Fatal("expect flunder:badname not admitted when wardle feature gates are specified")
+	}
+	if !enableWardleFeatureGate {
+		if err != nil {
+			t.Fatal("expect flunder:badname admitted when wardle feature gates are not specified")
+		} else {
+			defer wardleClient.Flunders(metav1.NamespaceSystem).Delete(ctx, "badname", metav1.DeleteOptions{})
+		}
 	}
 	_, err = wardleClient.Flunders(metav1.NamespaceSystem).Create(ctx, &wardlev1alpha1.Flunder{
 		ObjectMeta: metav1.ObjectMeta{
@@ -420,12 +441,17 @@ func TestAggregatedAPIServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer wardleClient.Flunders(metav1.NamespaceSystem).Delete(ctx, "panda", metav1.DeleteOptions{})
 	flunderList, err := wardleClient.Flunders(metav1.NamespaceSystem).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(flunderList.Items) != 1 {
-		t.Errorf("expected one flunder: %#v", flunderList.Items)
+	expectedFlunderCount := 2
+	if enableWardleFeatureGate {
+		expectedFlunderCount = 1
+	}
+	if len(flunderList.Items) != expectedFlunderCount {
+		t.Errorf("expected %d flunder: %#v", expectedFlunderCount, flunderList.Items)
 	}
 	if len(flunderList.ResourceVersion) == 0 {
 		t.Error("expected non-empty resource version for flunder list")
