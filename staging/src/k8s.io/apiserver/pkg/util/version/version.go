@@ -18,10 +18,8 @@ package version
 
 import (
 	"fmt"
-	"strings"
 	"sync/atomic"
 
-	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/util/version"
 	baseversion "k8s.io/component-base/version"
 )
@@ -40,37 +38,6 @@ type MutableEffectiveVersion interface {
 	Set(binaryVersion, emulationVersion, minCompatibilityVersion *version.Version)
 	SetEmulationVersion(emulationVersion *version.Version)
 	SetMinCompatibilityVersion(minCompatibilityVersion *version.Version)
-	// AddFlags adds the "{prefix}-emulated-version" to the flagset.
-	AddFlags(fs *pflag.FlagSet, prefix string)
-}
-
-type VersionVar struct {
-	val atomic.Pointer[version.Version]
-}
-
-// Set sets the flag value
-func (v *VersionVar) Set(s string) error {
-	components := strings.Split(s, ".")
-	if len(components) != 2 {
-		return fmt.Errorf("version %s is not in the format of major.minor", s)
-	}
-	ver, err := version.ParseGeneric(s)
-	if err != nil {
-		return err
-	}
-	v.val.Store(ver)
-	return nil
-}
-
-// String returns the flag value
-func (v *VersionVar) String() string {
-	ver := v.val.Load()
-	return ver.String()
-}
-
-// Type gets the flag type
-func (v *VersionVar) Type() string {
-	return "version"
 }
 
 type effectiveVersion struct {
@@ -78,9 +45,9 @@ type effectiveVersion struct {
 	// If the emulationVersion is set by the users, it could only contain major and minor versions.
 	// In tests, emulationVersion could be the same as the binary version, or set directly,
 	// which can have "alpha" as pre-release to continue serving expired apis while we clean up the test.
-	emulationVersion VersionVar
+	emulationVersion atomic.Pointer[version.Version]
 	// minCompatibilityVersion could only contain major and minor versions.
-	minCompatibilityVersion VersionVar
+	minCompatibilityVersion atomic.Pointer[version.Version]
 }
 
 func (m *effectiveVersion) BinaryVersion() *version.Version {
@@ -90,11 +57,11 @@ func (m *effectiveVersion) BinaryVersion() *version.Version {
 func (m *effectiveVersion) EmulationVersion() *version.Version {
 	// Emulation version can have "alpha" as pre-release to continue serving expired apis while we clean up the test.
 	// The pre-release should not be accessible to the users.
-	return m.emulationVersion.val.Load().WithPreRelease(m.BinaryVersion().PreRelease())
+	return m.emulationVersion.Load().WithPreRelease(m.BinaryVersion().PreRelease())
 }
 
 func (m *effectiveVersion) MinCompatibilityVersion() *version.Version {
-	return m.minCompatibilityVersion.val.Load()
+	return m.minCompatibilityVersion.Load()
 }
 
 func (m *effectiveVersion) EqualTo(other EffectiveVersion) bool {
@@ -111,24 +78,24 @@ func (m *effectiveVersion) String() string {
 
 func (m *effectiveVersion) Set(binaryVersion, emulationVersion, minCompatibilityVersion *version.Version) {
 	m.binaryVersion.Store(binaryVersion)
-	m.emulationVersion.val.Store(version.MajorMinor(emulationVersion.Major(), emulationVersion.Minor()))
-	m.minCompatibilityVersion.val.Store(version.MajorMinor(minCompatibilityVersion.Major(), minCompatibilityVersion.Minor()))
+	m.emulationVersion.Store(version.MajorMinor(emulationVersion.Major(), emulationVersion.Minor()))
+	m.minCompatibilityVersion.Store(version.MajorMinor(minCompatibilityVersion.Major(), minCompatibilityVersion.Minor()))
 }
 
 func (m *effectiveVersion) SetEmulationVersion(emulationVersion *version.Version) {
-	m.emulationVersion.val.Store(version.MajorMinor(emulationVersion.Major(), emulationVersion.Minor()))
+	m.emulationVersion.Store(version.MajorMinor(emulationVersion.Major(), emulationVersion.Minor()))
 }
 
 func (m *effectiveVersion) SetMinCompatibilityVersion(minCompatibilityVersion *version.Version) {
-	m.minCompatibilityVersion.val.Store(version.MajorMinor(minCompatibilityVersion.Major(), minCompatibilityVersion.Minor()))
+	m.minCompatibilityVersion.Store(version.MajorMinor(minCompatibilityVersion.Major(), minCompatibilityVersion.Minor()))
 }
 
 func (m *effectiveVersion) Validate() []error {
 	var errs []error
 	// Validate only checks the major and minor versions.
 	binaryVersion := m.binaryVersion.Load().WithPatch(0)
-	emulationVersion := m.emulationVersion.val.Load()
-	minCompatibilityVersion := m.minCompatibilityVersion.val.Load()
+	emulationVersion := m.emulationVersion.Load()
+	minCompatibilityVersion := m.minCompatibilityVersion.Load()
 
 	// emulationVersion can only be 1.{binaryMinor-1}...1.{binaryMinor}.
 	maxEmuVer := binaryVersion
@@ -149,23 +116,6 @@ func (m *effectiveVersion) Validate() []error {
 		errs = append(errs, fmt.Errorf("minCompatibilityVersion version %s is not between [%s, %s]", minCompatibilityVersion.String(), minCompVer.String(), maxCompVer.String()))
 	}
 	return errs
-}
-
-// AddFlags adds the "{prefix}-emulated-version" to the flagset.
-func (m *effectiveVersion) AddFlags(fs *pflag.FlagSet, prefix string) {
-	if m == nil {
-		return
-	}
-	if len(prefix) > 0 && !strings.HasSuffix(prefix, "-") {
-		prefix += "-"
-	}
-	fs.Var(&m.emulationVersion, prefix+"emulated-version", ""+
-		"The version the K8s component emulates its capabilities (APIs, features, ...) of.\n"+
-		"If set, the component will emulate the behavior of this version instead of the underlying binary version.\n"+
-		"Any capabilities present in the binary version that were introduced after the emulated version will be unavailable and any capabilities removed after the emulated version will be available.\n"+
-		"This flag applies only to component capabilities, and does not disable bug fixes and performance improvements present in the binary version.\n"+
-		"Defaults to the binary version. The value should be between 1.{binaryMinorVersion-1} and 1.{binaryMinorVersion}.\n"+
-		"Format could only be major.minor")
 }
 
 func NewEffectiveVersion(binaryVer string) MutableEffectiveVersion {
