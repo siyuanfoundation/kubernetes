@@ -167,7 +167,7 @@ func TestFlags(t *testing.T) {
 				"--emulated-version=kube=1.30",
 				"--emulated-version=kube=1.32",
 			},
-			expectedKubeEmulationVersion: "1.32",
+			parseError: "duplicate version flag, kube=1.30 and kube=1.32",
 		},
 		{
 			name:                         "prefix v ok",
@@ -177,7 +177,7 @@ func TestFlags(t *testing.T) {
 		{
 			name:       "patch version not ok",
 			flags:      []string{"--emulated-version=kube=1.30.2"},
-			parseError: "patch version not allowed, got: 1.30.2",
+			parseError: "patch version not allowed, got: kube=1.30.2",
 		},
 		{
 			name:                         "setting test emulation version",
@@ -186,9 +186,14 @@ func TestFlags(t *testing.T) {
 			expectedTestEmulationVersion: "2.7",
 		},
 		{
-			name:       "version missing component",
-			flags:      []string{"--emulated-version=1.31"},
-			parseError: "component not registered: 1.31",
+			name:                         "version missing component default to kube",
+			flags:                        []string{"--emulated-version=1.30"},
+			expectedKubeEmulationVersion: "1.30",
+		},
+		{
+			name:       "version missing component default to kube with duplicate",
+			flags:      []string{"--emulated-version=1.30", "--emulated-version=kube=1.30"},
+			parseError: "duplicate version flag, kube=1.30 and kube=1.30",
 		},
 		{
 			name:       "version unregistered component",

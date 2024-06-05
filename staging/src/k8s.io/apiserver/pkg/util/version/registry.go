@@ -103,8 +103,8 @@ type ComponentGlobalsRegistry interface {
 type componentGlobalsRegistry struct {
 	componentGlobals map[string]ComponentGlobals
 	mutex            sync.RWMutex
-	// map of component name to emulation version set from the flag.
-	emulationVersionConfig cliflag.ConfigurationMap
+	// list of component name to emulation version set from the flag.
+	emulationVersionConfig []string
 	// map of component name to the list of feature gates set from the flag.
 	featureGatesConfig map[string][]string
 	// emulationVersionMapping contains the mapping from the emulation version of one component
@@ -252,13 +252,14 @@ func (r *componentGlobalsRegistry) AddFlags(fs *pflag.FlagSet) {
 	if r.emulationVersionConfig != nil || r.featureGatesConfig != nil {
 		klog.Warning("calling componentGlobalsRegistry.AddFlags more than once, the registry will be set by the latest flags")
 	}
-	r.emulationVersionConfig = make(cliflag.ConfigurationMap)
+	r.emulationVersionConfig = []string{}
 	r.featureGatesConfig = make(map[string][]string)
 
-	fs.Var(&r.emulationVersionConfig, "emulated-version", ""+
+	fs.StringSliceVar(&r.emulationVersionConfig, "emulated-version", r.emulationVersionConfig, ""+
 		"The versions different components emulate their capabilities (APIs, features, ...) of.\n"+
 		"If set, the component will emulate the behavior of this version instead of the underlying binary version.\n"+
-		"Version format could only be major.minor, for example: '--emulated-version=wardle=1.2,kube=1.31'. Options are:\n"+strings.Join(r.unsafeVersionFlagOptions(true), "\n"))
+		"Version format could only be major.minor, for example: '--emulated-version=wardle=1.2,kube=1.31'. Options are:\n"+strings.Join(r.unsafeVersionFlagOptions(true), "\n")+
+		"If the component is not specified, defaults to \"kube\"")
 
 	fs.Var(cliflag.NewColonSeparatedMultimapStringStringAllowDefaultEmptyKey(&r.featureGatesConfig), "feature-gates", "Comma-separated list of component:key=value pairs that describe feature gates for alpha/experimental features of different components.\n"+
 		"If the component is not specified, defaults to \"kube\". This flag can be repeatedly invoked. For example: --feature-gates 'wardle:featureA=true,wardle:featureB=false' --feature-gates 'kube:featureC=true'"+
@@ -273,19 +274,12 @@ type componentVersion struct {
 // getFullVersionConfig expands the given version config with version registered version mapping,
 // and returns the map of component to Version.
 func (r *componentGlobalsRegistry) getFullVersionConfig(
-	config cliflag.ConfigurationMap, versionMapping map[string]map[string]VersionMapping) (map[string]*version.Version, error) {
+	versionConfigMap map[string]*version.Version, versionMapping map[string]map[string]VersionMapping) (map[string]*version.Version, error) {
 	result := map[string]*version.Version{}
 	setQueue := []componentVersion{}
-	for comp, verStr := range config {
+	for comp, ver := range versionConfigMap {
 		if _, ok := r.componentGlobals[comp]; !ok {
 			return result, fmt.Errorf("component not registered: %s", comp)
-		}
-		ver, err := version.Parse(verStr)
-		if err != nil {
-			return result, err
-		}
-		if ver.Patch() != 0 {
-			return result, fmt.Errorf("patch version not allowed, got: %s", verStr)
 		}
 		klog.V(klogLevel).Infof("setting version %s=%s", comp, ver.String())
 		setQueue = append(setQueue, componentVersion{comp, ver})
@@ -309,16 +303,49 @@ func (r *componentGlobalsRegistry) getFullVersionConfig(
 	return result, nil
 }
 
+func toVersionMap(versionConfig []string) (map[string]*version.Version, error) {
+	m := map[string]*version.Version{}
+	for _, compVer := range versionConfig {
+		// default to "kube" of component is not specified
+		k := "kube"
+		v := compVer
+		if strings.Contains(compVer, "=") {
+			arr := strings.SplitN(compVer, "=", 2)
+			if len(arr) != 2 {
+				return m, fmt.Errorf("malformed pair, expect string=string")
+			}
+			k = strings.TrimSpace(arr[0])
+			v = strings.TrimSpace(arr[1])
+		}
+		ver, err := version.Parse(v)
+		if err != nil {
+			return m, err
+		}
+		if ver.Patch() != 0 {
+			return m, fmt.Errorf("patch version not allowed, got: %s=%s", k, ver.String())
+		}
+		if existingVer, ok := m[k]; ok {
+			return m, fmt.Errorf("duplicate version flag, %s=%s and %s=%s", k, existingVer.String(), k, ver.String())
+		}
+		m[k] = ver
+	}
+	return m, nil
+}
+
 func (r *componentGlobalsRegistry) Set() error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
-	for comp := range r.emulationVersionConfig {
+	emulationVersionConfigMap, err := toVersionMap(r.emulationVersionConfig)
+	if err != nil {
+		return err
+	}
+	for comp := range emulationVersionConfigMap {
 		// only components without any dependencies can be set from the flag.
 		if r.componentsWithDependentEmulationVersion[comp] {
 			return fmt.Errorf("EmulationVersion of %s is set by mapping, cannot set it by flag", comp)
 		}
 	}
-	if emulationVersions, err := r.getFullVersionConfig(r.emulationVersionConfig, r.emulationVersionMapping); err != nil {
+	if emulationVersions, err := r.getFullVersionConfig(emulationVersionConfigMap, r.emulationVersionMapping); err != nil {
 		return err
 	} else {
 		for comp, ver := range emulationVersions {
@@ -399,9 +426,9 @@ func (r *componentGlobalsRegistry) SetEmulationVersionMapping(fromComponent, toC
 	}
 	versionMapping[toComponent] = f
 	klog.V(klogLevel).Infof("setting the default EmulationVersion of %s based on mapping from the default EmulationVersion of %s", fromComponent, toComponent)
-	defaultFromVersion := r.componentGlobals[fromComponent].effectiveVersion.EmulationVersion().String()
+	defaultFromVersion := r.componentGlobals[fromComponent].effectiveVersion.EmulationVersion()
 	emulationVersions, err := r.getFullVersionConfig(
-		cliflag.ConfigurationMap{fromComponent: defaultFromVersion}, r.emulationVersionMapping)
+		map[string]*version.Version{fromComponent: defaultFromVersion}, r.emulationVersionMapping)
 	if err != nil {
 		return err
 	}
