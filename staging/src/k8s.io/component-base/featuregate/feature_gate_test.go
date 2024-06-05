@@ -1477,3 +1477,33 @@ func TestFeatureSpecAtEmulationVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestOpenForModification(t *testing.T) {
+	const testBetaGate Feature = "testBetaGate"
+	f := NewVersionedFeatureGate(version.MustParse("1.29"))
+
+	err := f.AddVersioned(map[Feature]VersionedSpecs{
+		testBetaGate: {
+			{Version: version.MustParse("1.29"), Default: true, PreRelease: Beta},
+			{Version: version.MustParse("1.28"), Default: false, PreRelease: Beta},
+			{Version: version.MustParse("1.26"), Default: false, PreRelease: Alpha},
+		},
+	})
+	require.NoError(t, err)
+
+	if f.Enabled(testBetaGate) != true {
+		t.Errorf("Expected true")
+	}
+	err = f.SetEmulationVersion(version.MustParse("1.28"))
+	if err == nil {
+		t.Fatalf("Expected error when SetEmulationVersion after querying features")
+	}
+	if f.Enabled(testBetaGate) != true {
+		t.Errorf("Expected true")
+	}
+	f.OpenForModification()
+	require.NoError(t, f.SetEmulationVersion(version.MustParse("1.28")))
+	if f.Enabled(testBetaGate) != false {
+		t.Errorf("Expected false at 1.28")
+	}
+}
