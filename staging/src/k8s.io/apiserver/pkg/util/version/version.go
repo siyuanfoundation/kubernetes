@@ -55,9 +55,13 @@ func (m *effectiveVersion) BinaryVersion() *version.Version {
 }
 
 func (m *effectiveVersion) EmulationVersion() *version.Version {
-	// Emulation version can have "alpha" as pre-release to continue serving expired apis while we clean up the test.
-	// The pre-release should not be accessible to the users.
-	return m.emulationVersion.Load().WithPreRelease(m.BinaryVersion().PreRelease())
+	ver := m.emulationVersion.Load()
+	if ver != nil {
+		// Emulation version can have "alpha" as pre-release to continue serving expired apis while we clean up the test.
+		// The pre-release should not be accessible to the users.
+		return ver.WithPreRelease(m.BinaryVersion().PreRelease())
+	}
+	return ver
 }
 
 func (m *effectiveVersion) MinCompatibilityVersion() *version.Version {
@@ -76,18 +80,25 @@ func (m *effectiveVersion) String() string {
 		m.BinaryVersion().String(), m.EmulationVersion().String(), m.MinCompatibilityVersion().String())
 }
 
+func majorMinor(ver *version.Version) *version.Version {
+	if ver == nil {
+		return ver
+	}
+	return version.MajorMinor(ver.Major(), ver.Minor())
+}
+
 func (m *effectiveVersion) Set(binaryVersion, emulationVersion, minCompatibilityVersion *version.Version) {
 	m.binaryVersion.Store(binaryVersion)
-	m.emulationVersion.Store(version.MajorMinor(emulationVersion.Major(), emulationVersion.Minor()))
-	m.minCompatibilityVersion.Store(version.MajorMinor(minCompatibilityVersion.Major(), minCompatibilityVersion.Minor()))
+	m.emulationVersion.Store(majorMinor(emulationVersion))
+	m.minCompatibilityVersion.Store(majorMinor(minCompatibilityVersion))
 }
 
 func (m *effectiveVersion) SetEmulationVersion(emulationVersion *version.Version) {
-	m.emulationVersion.Store(version.MajorMinor(emulationVersion.Major(), emulationVersion.Minor()))
+	m.emulationVersion.Store(majorMinor(emulationVersion))
 }
 
 func (m *effectiveVersion) SetMinCompatibilityVersion(minCompatibilityVersion *version.Version) {
-	m.minCompatibilityVersion.Store(version.MajorMinor(minCompatibilityVersion.Major(), minCompatibilityVersion.Minor()))
+	m.minCompatibilityVersion.Store(majorMinor(minCompatibilityVersion))
 }
 
 func (m *effectiveVersion) Validate() []error {
@@ -118,28 +129,36 @@ func (m *effectiveVersion) Validate() []error {
 	return errs
 }
 
-func NewEffectiveVersion(binaryVer string) MutableEffectiveVersion {
+func newEffectiveVersion(binaryVersion *version.Version) MutableEffectiveVersion {
 	effective := &effectiveVersion{}
-	binaryVersion := version.MustParse(binaryVer)
 	compatVersion := binaryVersion.SubtractMinor(1)
 	effective.Set(binaryVersion, binaryVersion, compatVersion)
 	return effective
+}
+
+func NewEffectiveVersion(binaryVer string) MutableEffectiveVersion {
+	if binaryVer == "" {
+		return &effectiveVersion{}
+	}
+	binaryVersion := version.MustParse(binaryVer)
+	return newEffectiveVersion(binaryVersion)
 }
 
 // DefaultBuildEffectiveVersion returns the MutableEffectiveVersion based on the
 // current build information.
 func DefaultBuildEffectiveVersion() MutableEffectiveVersion {
 	verInfo := baseversion.Get()
-	ver := NewEffectiveVersion(verInfo.String())
-	if ver.BinaryVersion().Major() == 0 && ver.BinaryVersion().Minor() == 0 {
-		ver = DefaultKubeEffectiveVersion()
+	binaryVersion := version.MustParse(verInfo.String()).WithInfo(verInfo)
+	if binaryVersion.Major() == 0 && binaryVersion.Minor() == 0 {
+		return DefaultKubeEffectiveVersion()
 	}
-	return ver
+	return newEffectiveVersion(binaryVersion)
 }
 
 // DefaultKubeEffectiveVersion returns the MutableEffectiveVersion based on the
 // latest K8s release.
 // Should update for each minor release!
 func DefaultKubeEffectiveVersion() MutableEffectiveVersion {
-	return NewEffectiveVersion("1.31")
+	binaryVersion := version.MustParse("1.31").WithInfo(baseversion.Get())
+	return newEffectiveVersion(binaryVersion)
 }

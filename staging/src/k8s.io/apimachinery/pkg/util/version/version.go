@@ -23,6 +23,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	apimachineryversion "k8s.io/apimachinery/pkg/version"
 )
 
 // Version is an opaque representation of a version number
@@ -31,6 +33,7 @@ type Version struct {
 	semver        bool
 	preRelease    string
 	buildMetadata string
+	info          apimachineryversion.Info
 }
 
 var (
@@ -451,4 +454,31 @@ func (v *Version) Compare(other string) (int, error) {
 		return 0, err
 	}
 	return v.compareInternal(ov), nil
+}
+
+// WithInfo returns copy of the version object with requested info
+func (v *Version) WithInfo(info apimachineryversion.Info) *Version {
+	result := *v
+	result.info = info
+	return &result
+}
+
+func (v *Version) Info() *apimachineryversion.Info {
+	if v == nil {
+		return nil
+	}
+	// in case info is empty, or the major and minor in info is different from the actual major and minor
+	v.info.Major = itoa(v.Major())
+	v.info.Minor = itoa(v.Minor())
+	if v.info.GitVersion == "" {
+		v.info.GitVersion = v.String()
+	}
+	return &v.info
+}
+
+func itoa(i uint) string {
+	if i == 0 {
+		return ""
+	}
+	return strconv.Itoa(int(i))
 }
