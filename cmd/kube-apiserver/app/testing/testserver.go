@@ -183,11 +183,10 @@ func StartTestServer(t ktesting.TB, instanceOptions *TestServerInstanceOptions, 
 	fs := pflag.NewFlagSet("test", pflag.PanicOnError)
 
 	featureGate := utilfeature.DefaultMutableFeatureGate
-	binaryVersion := utilversion.DefaultKubeEffectiveVersion().BinaryVersion().String()
+	effectiveVersion := utilversion.DefaultKubeEffectiveVersion()
 	if instanceOptions.BinaryVersion != "" {
-		binaryVersion = instanceOptions.BinaryVersion
+		effectiveVersion = utilversion.NewEffectiveVersion(instanceOptions.BinaryVersion)
 	}
-	effectiveVersion := utilversion.NewEffectiveVersion(binaryVersion)
 	utilversion.DefaultComponentGlobalsRegistry.Reset()
 	utilruntime.Must(utilversion.DefaultComponentGlobalsRegistry.Register(utilversion.DefaultKubeComponent, effectiveVersion, featureGate))
 
