@@ -1280,6 +1280,48 @@ func TestVersionedFeatureGateOverrideDefault(t *testing.T) {
 		}
 	})
 
+	t.Run("overrides at specific version take effect", func(t *testing.T) {
+		f := NewVersionedFeatureGate(version.MustParse("1.29"))
+		require.NoError(t, f.SetEmulationVersion(version.MustParse("1.28")))
+		if err := f.AddVersioned(map[Feature]VersionedSpecs{
+			"TestFeature1": {
+				{Version: version.MustParse("1.28"), Default: true},
+			},
+			"TestFeature2": {
+				{Version: version.MustParse("1.26"), Default: false},
+				{Version: version.MustParse("1.29"), Default: false},
+			},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if f.OverrideDefaultAtVersion("TestFeature1", false, version.MustParse("1.27")) == nil {
+			t.Error("expected error when attempting to override the default for a feature not available at given version")
+		}
+		require.NoError(t, f.OverrideDefaultAtVersion("TestFeature2", true, version.MustParse("1.27")))
+		if !f.Enabled("TestFeature1") {
+			t.Error("expected TestFeature1 to have effective default of true")
+		}
+		if !f.Enabled("TestFeature2") {
+			t.Error("expected TestFeature2 to have effective default of true")
+		}
+		f.OpenForModification()
+		require.NoError(t, f.SetEmulationVersion(version.MustParse("1.29")))
+		if !f.Enabled("TestFeature1") {
+			t.Error("expected TestFeature1 to have effective default of true")
+		}
+		if f.Enabled("TestFeature2") {
+			t.Error("expected TestFeature2 to have effective default of false")
+		}
+		f.OpenForModification()
+		require.NoError(t, f.SetEmulationVersion(version.MustParse("1.26")))
+		if f.Enabled("TestFeature1") {
+			t.Error("expected TestFeature1 to have effective default of false")
+		}
+		if !f.Enabled("TestFeature2") {
+			t.Error("expected TestFeature2 to have effective default of true")
+		}
+	})
+
 	t.Run("overrides are preserved across deep copies", func(t *testing.T) {
 		f := NewVersionedFeatureGate(version.MustParse("1.29"))
 		require.NoError(t, f.SetEmulationVersion(version.MustParse("1.28")))

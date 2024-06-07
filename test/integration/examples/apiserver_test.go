@@ -226,15 +226,18 @@ func TestAPIServiceWaitOnStart(t *testing.T) {
 }
 
 func TestAggregatedAPIServer(t *testing.T) {
-	t.Run("WithoutWardleFeatureGate", func(t *testing.T) {
-		testAggregatedAPIServer(t, false)
+	t.Run("WithoutWardleFeatureGateAtV1.2", func(t *testing.T) {
+		testAggregatedAPIServer(t, false, "1.2")
 	})
-	t.Run("WithWardleFeatureGate", func(t *testing.T) {
-		testAggregatedAPIServer(t, true)
+	t.Run("WithoutWardleFeatureGateAtV1.1", func(t *testing.T) {
+		testAggregatedAPIServer(t, false, "1.1")
+	})
+	t.Run("WithWardleFeatureGateAtV1.1", func(t *testing.T) {
+		testAggregatedAPIServer(t, true, "1.1")
 	})
 }
 
-func testAggregatedAPIServer(t *testing.T, enableWardleFeatureGate bool) {
+func testAggregatedAPIServer(t *testing.T, enableWardleFeatureGate bool, emulationVersion string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	t.Cleanup(cancel)
 
@@ -249,7 +252,7 @@ func testAggregatedAPIServer(t *testing.T, enableWardleFeatureGate bool) {
 	// endpoints cannot have loopback IPs so we need to override the resolver itself
 	t.Cleanup(app.SetServiceResolverForTests(staticURLServiceResolver(fmt.Sprintf("https://127.0.0.1:%d", wardlePort))))
 
-	testServer := kastesting.StartTestServerOrDie(t, &kastesting.TestServerInstanceOptions{EnableCertAuth: true}, nil, framework.SharedEtcd())
+	testServer := kastesting.StartTestServerOrDie(t, &kastesting.TestServerInstanceOptions{EnableCertAuth: true, BinaryVersion: "1.32"}, nil, framework.SharedEtcd())
 	defer testServer.TearDownFn()
 	kubeClientConfig := rest.CopyConfig(testServer.ClientConfig)
 	// force json because everything speaks it
@@ -301,7 +304,7 @@ func testAggregatedAPIServer(t *testing.T, enableWardleFeatureGate bool) {
 			"--etcd-servers", framework.GetEtcdURL(),
 			"--cert-dir", wardleCertDir,
 			"--kubeconfig", wardleToKASKubeConfigFile,
-			"--emulated-version", "wardle=1.1",
+			"--emulated-version", fmt.Sprintf("wardle=%s", emulationVersion),
 		}
 		if enableWardleFeatureGate {
 			args = append(args, "--feature-gates", "wardle:BanFlunder=true")
@@ -423,10 +426,11 @@ func testAggregatedAPIServer(t *testing.T, enableWardleFeatureGate bool) {
 			Name: "badname",
 		},
 	}, metav1.CreateOptions{})
-	if enableWardleFeatureGate && err == nil {
+	banFlunder := enableWardleFeatureGate || emulationVersion == "1.2"
+	if banFlunder && err == nil {
 		t.Fatal("expect flunder:badname not admitted when wardle feature gates are specified")
 	}
-	if !enableWardleFeatureGate {
+	if !banFlunder {
 		if err != nil {
 			t.Fatal("expect flunder:badname admitted when wardle feature gates are not specified")
 		} else {
@@ -447,7 +451,7 @@ func testAggregatedAPIServer(t *testing.T, enableWardleFeatureGate bool) {
 		t.Fatal(err)
 	}
 	expectedFlunderCount := 2
-	if enableWardleFeatureGate {
+	if banFlunder {
 		expectedFlunderCount = 1
 	}
 	if len(flunderList.Items) != expectedFlunderCount {

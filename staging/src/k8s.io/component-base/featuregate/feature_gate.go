@@ -173,6 +173,18 @@ type MutableVersionedFeatureGate interface {
 	GetAllVersioned() map[Feature]VersionedSpecs
 	// AddVersioned adds versioned feature specs to the featureGate.
 	AddVersioned(features map[Feature]VersionedSpecs) error
+	// OverrideDefaultAtVersion sets a local override for the registered default value of a named
+	// feature for the prerelease lifecycle the given version is at.
+	// If the feature has not been previously registered (e.g. by a call to Add),
+	// has a locked default, or if the gate has already registered itself with a FlagSet, a non-nil
+	// error is returned.
+	//
+	// When two or more components consume a common feature, one component can override its
+	// default at runtime in order to adopt new defaults before or after the other
+	// components. For example, a new feature can be evaluated with a limited blast radius by
+	// overriding its default to true for a limited number of components without simultaneously
+	// changing its default for all consuming components.
+	OverrideDefaultAtVersion(name Feature, override bool, ver *version.Version) error
 }
 
 // MutableVersionedFeatureGateForTests is a feature gate interface that should only be used in tests.
@@ -442,6 +454,10 @@ func (f *featureGate) AddVersioned(features map[Feature]VersionedSpecs) error {
 }
 
 func (f *featureGate) OverrideDefault(name Feature, override bool) error {
+	return f.OverrideDefaultAtVersion(name, override, f.EmulationVersion())
+}
+
+func (f *featureGate) OverrideDefaultAtVersion(name Feature, override bool, ver *version.Version) error {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 
@@ -459,12 +475,12 @@ func (f *featureGate) OverrideDefault(name Feature, override bool) error {
 	if !ok {
 		return fmt.Errorf("cannot override default: feature %q is not registered", name)
 	}
-	spec := f.featureSpecAtEmulationVersion(specs)
+	spec := featureSpecAtEmulationVersion(specs, ver)
 	switch {
 	case spec.LockToDefault:
 		return fmt.Errorf("cannot override default: feature %q default is locked to %t", name, spec.Default)
 	case spec.PreRelease == PreAlpha:
-		return fmt.Errorf("cannot override default: feature %q is not available before emulation version %s", name, f.EmulationVersion().String())
+		return fmt.Errorf("cannot override default: feature %q is not available before version %s", name, ver.String())
 	case spec.PreRelease == Deprecated:
 		klog.Warningf("Overriding default of deprecated feature gate %s=%t. It will be removed in a future release.", name, override)
 	case spec.PreRelease == GA:
