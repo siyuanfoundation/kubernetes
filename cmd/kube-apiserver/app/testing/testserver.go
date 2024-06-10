@@ -190,12 +190,11 @@ func StartTestServer(t ktesting.TB, instanceOptions *TestServerInstanceOptions, 
 	utilversion.DefaultComponentGlobalsRegistry.Reset()
 	utilruntime.Must(utilversion.DefaultComponentGlobalsRegistry.Register(utilversion.DefaultKubeComponent, effectiveVersion, featureGate))
 
-	s := options.NewServerRunOptions(featureGate, effectiveVersion)
+	s := options.NewServerRunOptions()
 
 	for _, f := range s.Flags().FlagSets {
 		fs.AddFlagSet(f)
 	}
-	utilversion.DefaultComponentGlobalsRegistry.AddFlags(fs)
 
 	s.SecureServing.Listener, s.SecureServing.BindPort, err = createLocalhostListenerOnFreePort()
 	if err != nil {
