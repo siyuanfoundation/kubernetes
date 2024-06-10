@@ -195,7 +195,6 @@ func StartTestServer(t ktesting.TB, instanceOptions *TestServerInstanceOptions, 
 	for _, f := range s.Flags().FlagSets {
 		fs.AddFlagSet(f)
 	}
-	utilversion.DefaultComponentGlobalsRegistry.AddFlags(fs)
 
 	s.SecureServing.Listener, s.SecureServing.BindPort, err = createLocalhostListenerOnFreePort()
 	if err != nil {

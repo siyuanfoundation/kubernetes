@@ -128,8 +128,6 @@ func StartTestServer(t Logger, _ *TestServerInstanceOptions, customFlags []strin
 	utilversion.DefaultComponentGlobalsRegistry.Reset()
 	utilruntime.Must(utilversion.DefaultComponentGlobalsRegistry.Register(utilversion.DefaultKubeComponent, effectiveVersion, featureGate))
 	s := options.NewCustomResourceDefinitionsServerOptions(os.Stdout, os.Stderr, featureGate, effectiveVersion)
-
-	utilversion.DefaultComponentGlobalsRegistry.AddFlags(fs)
 	s.AddFlags(fs)
 
 	s.RecommendedOptions.SecureServing.Listener, s.RecommendedOptions.SecureServing.BindPort, err = createLocalhostListenerOnFreePort()

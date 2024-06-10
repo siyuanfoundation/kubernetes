@@ -58,7 +58,6 @@ func NewServerCommand(ctx context.Context, out, errOut io.Writer) *cobra.Command
 	cmd.SetContext(ctx)
 
 	fs := cmd.Flags()
-	utilversion.DefaultComponentGlobalsRegistry.AddFlags(fs)
 	o.AddFlags(fs)
 	return cmd
 }

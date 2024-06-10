@@ -205,12 +205,7 @@ func (s *ServerRunOptions) Validate() []error {
 	if err := validateCorsAllowedOriginList(s.CorsAllowedOriginList); err != nil {
 		errors = append(errors, err)
 	}
-	if s.FeatureGate != nil {
-		if errs := s.FeatureGate.Validate(); len(errs) != 0 {
-			errors = append(errors, errs...)
-		}
-	}
-	if errs := s.EffectiveVersion.Validate(); len(errs) != 0 {
+	if errs := utilversion.DefaultComponentGlobalsRegistry.Validate(); len(errs) != 0 {
 		errors = append(errors, errs...)
 	}
 	return errors
@@ -291,6 +286,7 @@ func (s *ServerRunOptions) AddUniversalFlags(fs *pflag.FlagSet) {
 	// Note: the weird ""+ in below lines seems to be the only way to get gofmt to
 	// arrange these text blocks sensibly. Grrr.
 
+	utilversion.DefaultComponentGlobalsRegistry.AddFlags(fs)
 	fs.IPVar(&s.AdvertiseAddress, "advertise-address", s.AdvertiseAddress, ""+
 		"The IP address on which to advertise the apiserver to members of the cluster. This "+
 		"address must be reachable by the rest of the cluster. If blank, the --bind-address "+

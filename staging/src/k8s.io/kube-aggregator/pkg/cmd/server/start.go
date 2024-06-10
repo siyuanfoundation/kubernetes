@@ -81,10 +81,7 @@ func NewCommandStartAggregator(ctx context.Context, defaults *AggregatorOptions)
 	}
 	cmd.SetContext(ctx)
 
-	fs := cmd.Flags()
-	utilversion.DefaultComponentGlobalsRegistry.AddFlags(fs)
-
-	o.AddFlags(fs)
+	o.AddFlags(cmd.Flags())
 	return cmd
 }
 
