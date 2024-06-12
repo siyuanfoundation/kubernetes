@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/component-base/featuregate"
 )
 
@@ -154,6 +155,107 @@ func TestSetFeatureGateInTest(t *gotest.T) {
 		assert.False(t, gate.Enabled("feature"))
 	})
 	assert.True(t, gate.Enabled("feature"))
+}
+
+func TestSpecialGatesVersioned(t *gotest.T) {
+	originalEmulationVersion := version.MustParse("1.31")
+	gate := featuregate.NewVersionedFeatureGate(originalEmulationVersion)
+
+	err := gate.AddVersioned(map[featuregate.Feature]featuregate.VersionedSpecs{
+		"alpha_default_on": {
+			{Version: version.MustParse("1.27"), Default: true, PreRelease: featuregate.Alpha},
+		},
+		"alpha_default_off": {
+			{Version: version.MustParse("1.27"), Default: false, PreRelease: featuregate.Alpha},
+		},
+		"beta_default_on": {
+			{Version: version.MustParse("1.31"), Default: true, PreRelease: featuregate.Beta},
+		},
+		"beta_default_on_set_off": {
+			{Version: version.MustParse("1.31"), Default: true, PreRelease: featuregate.Beta},
+			{Version: version.MustParse("1.27"), Default: false, PreRelease: featuregate.Alpha},
+		},
+		"beta_default_off": {
+			{Version: version.MustParse("1.27"), Default: false, PreRelease: featuregate.Beta},
+		},
+		"beta_default_off_set_on": {
+			{Version: version.MustParse("1.31"), Default: false, PreRelease: featuregate.Beta},
+			{Version: version.MustParse("1.27"), Default: false, PreRelease: featuregate.Alpha},
+		},
+	})
+	require.NoError(t, err)
+
+	gate.Set("beta_default_on_set_off=false")
+	gate.Set("beta_default_off_set_on=true")
+
+	before := map[featuregate.Feature]bool{
+		"AllAlpha": false,
+		"AllBeta":  false,
+
+		"alpha_default_on":  true,
+		"alpha_default_off": false,
+
+		"beta_default_on":         true,
+		"beta_default_on_set_off": false,
+		"beta_default_off":        false,
+		"beta_default_off_set_on": true,
+	}
+	expect(t, gate, before)
+	t.Cleanup(func() {
+		gate.OpenForModification()
+		gate.SetEmulationVersion(originalEmulationVersion)
+		expect(t, gate, before)
+	})
+
+	t.Run("OverwriteInSubtest", func(t *gotest.T) {
+		SetFeatureGateDuringTest(t, gate, "AllAlpha", true)
+		expect(t, gate, map[featuregate.Feature]bool{
+			"AllAlpha": true,
+			"AllBeta":  false,
+
+			"alpha_default_on":  true,
+			"alpha_default_off": true,
+
+			"beta_default_on":         true,
+			"beta_default_on_set_off": false,
+			"beta_default_off":        false,
+			"beta_default_off_set_on": true,
+		})
+
+		SetFeatureGateDuringTest(t, gate, "AllBeta", true)
+		expect(t, gate, map[featuregate.Feature]bool{
+			"AllAlpha": true,
+			"AllBeta":  true,
+
+			"alpha_default_on":  true,
+			"alpha_default_off": true,
+
+			"beta_default_on":         true,
+			"beta_default_on_set_off": true,
+			"beta_default_off":        true,
+			"beta_default_off_set_on": true,
+		})
+	})
+	expect(t, gate, before)
+
+	t.Run("OverwriteInSubtestAtDifferentVersion", func(t *gotest.T) {
+		gate.OpenForModification()
+		require.NoError(t, gate.SetEmulationVersion(version.MustParse("1.28")))
+		SetFeatureGateDuringTest(t, gate, "AllAlpha", true)
+		expect(t, gate, map[featuregate.Feature]bool{
+			"AllAlpha": true,
+			"AllBeta":  false,
+
+			"alpha_default_on":  true,
+			"alpha_default_off": true,
+
+			"beta_default_on":         false,
+			"beta_default_on_set_off": true,
+			"beta_default_off":        false,
+			"beta_default_off_set_on": true,
+		})
+	})
+
 }
 
 func TestDetectLeakToMainTest(t *gotest.T) {

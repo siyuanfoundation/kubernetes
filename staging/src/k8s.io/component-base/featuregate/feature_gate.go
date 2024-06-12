@@ -558,9 +558,9 @@ func (f *featureGate) EmulationVersion() *version.Version {
 	return f.emulationVersion.Load()
 }
 
-// FeatureSpec returns the FeatureSpec at the EmulationVersion if the key exists, an error otherwise.
+// featureSpec returns the featureSpec at the EmulationVersion if the key exists, an error otherwise.
 // This is useful to keep multiple implementations of a feature based on the PreRelease or Version info.
-func (f *featureGate) FeatureSpec(key Feature) (FeatureSpec, error) {
+func (f *featureGate) featureSpec(key Feature) (FeatureSpec, error) {
 	if v, ok := f.known.Load().(map[Feature]VersionedSpecs)[key]; ok {
 		featureSpec := f.featureSpecAtEmulationVersion(v)
 		return *featureSpec, nil
