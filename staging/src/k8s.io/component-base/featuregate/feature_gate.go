@@ -285,7 +285,7 @@ func NewVersionedFeatureGate(emulationVersion *version.Version) *featureGate {
 
 // NewFeatureGate creates a feature gate with the current binary version.
 func NewFeatureGate() *featureGate {
-	binaryVersison := version.MustParse(baseversion.Get().String())
+	binaryVersison := version.MustParse(baseversion.DefaultKubeBinaryVersion)
 	return NewVersionedFeatureGate(binaryVersison)
 }
 
@@ -521,6 +521,9 @@ func (f *featureGate) GetAllVersioned() map[Feature]VersionedSpecs {
 }
 
 func (f *featureGate) SetEmulationVersion(emulationVersion *version.Version) error {
+	if emulationVersion.EqualTo(f.EmulationVersion()) {
+		return nil
+	}
 	f.lock.Lock()
 	defer f.lock.Unlock()
 	klog.V(1).Infof("set feature gate emulationVersion to %s", emulationVersion.String())
@@ -558,9 +561,9 @@ func (f *featureGate) EmulationVersion() *version.Version {
 	return f.emulationVersion.Load()
 }
 
-// FeatureSpec returns the FeatureSpec at the EmulationVersion if the key exists, an error otherwise.
+// featureSpec returns the featureSpec at the EmulationVersion if the key exists, an error otherwise.
 // This is useful to keep multiple implementations of a feature based on the PreRelease or Version info.
-func (f *featureGate) FeatureSpec(key Feature) (FeatureSpec, error) {
+func (f *featureGate) featureSpec(key Feature) (FeatureSpec, error) {
 	if v, ok := f.known.Load().(map[Feature]VersionedSpecs)[key]; ok {
 		featureSpec := f.featureSpecAtEmulationVersion(v)
 		return *featureSpec, nil
@@ -630,7 +633,9 @@ func (f *featureGate) OpenForModification() {
 	for feature := range f.queriedFeatures.Load().(map[Feature]struct{}) {
 		queriedFeatures = append(queriedFeatures, feature)
 	}
-	klog.Warningf("open feature gate for modification after querying features: %v.", queriedFeatures)
+	if len(queriedFeatures) > 0 {
+		klog.Warningf("open feature gate for modification after querying features: %v.", queriedFeatures)
+	}
 	f.closedForModification.Store(false)
 	f.queriedFeatures.Store(map[Feature]struct{}{})
 }

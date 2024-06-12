@@ -128,6 +128,9 @@ func NewServerRunOptionsForComponent(componentName string, componentGlobalsRegis
 
 // ApplyTo applies the run options to the method receiver and returns self
 func (s *ServerRunOptions) ApplyTo(c *server.Config) error {
+	if err := s.ComponentGlobalsRegistry.SetFallback(); err != nil {
+		return err
+	}
 	c.CorsAllowedOriginList = s.CorsAllowedOriginList
 	c.HSTSDirectives = s.HSTSDirectives
 	c.ExternalAddress = s.ExternalHost
@@ -366,5 +369,5 @@ func (s *ServerRunOptions) AddUniversalFlags(fs *pflag.FlagSet) {
 
 // Complete fills missing fields with defaults.
 func (s *ServerRunOptions) Complete() error {
-	return s.ComponentGlobalsRegistry.SetOnce()
+	return s.ComponentGlobalsRegistry.SetFallback()
 }

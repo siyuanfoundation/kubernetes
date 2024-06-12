@@ -1129,22 +1129,22 @@ func TestVersionedFeatureGateFlagDefaults(t *testing.T) {
 	if f.Enabled(testAlphaGate) != false {
 		t.Errorf("Expected false")
 	}
-	if fs, _ := f.FeatureSpec(testAlphaGate); fs.PreRelease != PreAlpha || fs.Version.String() != "0.0" {
+	if fs, _ := f.featureSpec(testAlphaGate); fs.PreRelease != PreAlpha || fs.Version.String() != "0.0" {
 		t.Errorf("Expected (PreAlpha, 0.0)")
 	}
 	if f.Enabled(testBetaGate) != false {
 		t.Errorf("Expected false")
 	}
-	if fs, _ := f.FeatureSpec(testBetaGate); fs.PreRelease != Beta || fs.Version.String() != "1.28" {
+	if fs, _ := f.featureSpec(testBetaGate); fs.PreRelease != Beta || fs.Version.String() != "1.28" {
 		t.Errorf("Expected (Beta, 1.28)")
 	}
 	if f.Enabled(testGAGate) != true {
 		t.Errorf("Expected true")
 	}
-	if fs, _ := f.FeatureSpec(testGAGate); fs.PreRelease != Beta || fs.Version.String() != "1.27" {
+	if fs, _ := f.featureSpec(testGAGate); fs.PreRelease != Beta || fs.Version.String() != "1.27" {
 		t.Errorf("Expected (Beta, 1.27)")
 	}
-	if _, err := f.FeatureSpec("NonExist"); err == nil {
+	if _, err := f.featureSpec("NonExist"); err == nil {
 		t.Errorf("Expected Error")
 	}
 	allFeatures := f.GetAll()

@@ -101,8 +101,8 @@ type ComponentGlobalsRegistry interface {
 	AddFlags(fs *pflag.FlagSet)
 	// Set sets the flags for all global variables for all components registered.
 	Set() error
-	// SetOnce calls Set() if it has never been called.
-	SetOnce() error
+	// SetFallback calls Set() if it has never been called.
+	SetFallback() error
 	// Validate calls the Validate() function for all the global variables for all components registered.
 	Validate() []error
 	// Reset removes all stored ComponentGlobals, configurations, and version mappings.
@@ -335,13 +335,15 @@ func toVersionMap(versionConfig []string) (map[string]*version.Version, error) {
 	return m, nil
 }
 
-func (r *componentGlobalsRegistry) SetOnce() error {
+func (r *componentGlobalsRegistry) SetFallback() error {
 	r.mutex.Lock()
 	set := r.set
 	r.mutex.Unlock()
 	if set {
 		return nil
 	}
+	klog.Warning("setting componentGlobalsRegistry in SetFallback. We recommend calling componentGlobalsRegistry.Set()" +
+		" right after parsing flags to avoid using feature gates before their final values are set by the flags.")
 	return r.Set()
 }
 
