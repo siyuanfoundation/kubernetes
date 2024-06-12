@@ -114,6 +114,9 @@ type FeatureGate interface {
 	// set on the copy without mutating the original. This is useful for validating
 	// config against potential feature gate changes before committing those changes.
 	DeepCopy() MutableVersionedFeatureGate
+	// CopyKnownFeatures returns a partial copy of the FeatureGate object, with all the known features and overrides.
+	// This is useful for creating a new instance of feature gate without inheriting all the enabled configurations of the base feature gate.
+	CopyKnownFeatures() MutableVersionedFeatureGate
 	// Validate checks if the flag gates are valid at the emulated version.
 	Validate() []error
 }
@@ -669,6 +672,19 @@ func (f *featureGate) KnownFeatures() []string {
 	}
 	sort.Strings(known)
 	return known
+}
+
+// CopyKnownFeatures returns a partial copy of the FeatureGate object, with all the known features and overrides.
+// This is useful for creating a new instance of feature gate without inheriting all the enabled configurations of the base feature gate.
+func (f *featureGate) CopyKnownFeatures() MutableVersionedFeatureGate {
+	fg := NewVersionedFeatureGate(f.EmulationVersion())
+	// Copy existing features.
+	known := map[Feature]VersionedSpecs{}
+	for k, v := range f.known.Load().(map[Feature]VersionedSpecs) {
+		known[k] = v
+	}
+	fg.known.Store(known)
+	return fg
 }
 
 // DeepCopy returns a deep copy of the FeatureGate object, such that gates can be

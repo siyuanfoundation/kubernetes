@@ -596,6 +596,16 @@ func TestFeatureGateOverrideDefault(t *testing.T) {
 		}
 	})
 
+	t.Run("overrides are preserved across CopyKnownFeatures", func(t *testing.T) {
+		f := NewFeatureGate()
+		require.NoError(t, f.Add(map[Feature]FeatureSpec{"TestFeature": {Default: false}}))
+		require.NoError(t, f.OverrideDefault("TestFeature", true))
+		fcopy := f.CopyKnownFeatures()
+		if !fcopy.Enabled("TestFeature") {
+			t.Error("default override was not preserved by CopyKnownFeatures")
+		}
+	})
+
 	t.Run("reflected in known features", func(t *testing.T) {
 		f := NewFeatureGate()
 		if err := f.Add(map[Feature]FeatureSpec{"TestFeature": {
