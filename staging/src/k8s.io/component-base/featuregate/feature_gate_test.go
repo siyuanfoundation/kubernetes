@@ -1559,3 +1559,152 @@ func TestOpenForModification(t *testing.T) {
 		t.Errorf("Expected false at 1.28")
 	}
 }
+
+func TestExplicitlySet(t *testing.T) {
+	// gates for testing
+	const testAlphaGate Feature = "TestAlpha"
+	const testBetaGate Feature = "TestBeta"
+
+	tests := []struct {
+		arg                   string
+		expectedFeatureValue  map[Feature]bool
+		expectedExplicitlySet map[Feature]bool
+	}{
+		{
+			arg: "",
+			expectedFeatureValue: map[Feature]bool{
+				allAlphaGate:  false,
+				allBetaGate:   false,
+				testAlphaGate: false,
+				testBetaGate:  false,
+			},
+			expectedExplicitlySet: map[Feature]bool{
+				allAlphaGate:  false,
+				allBetaGate:   false,
+				testAlphaGate: false,
+				testBetaGate:  false,
+			},
+		},
+		{
+			arg: "AllAlpha=true,TestBeta=false",
+			expectedFeatureValue: map[Feature]bool{
+				allAlphaGate:  true,
+				allBetaGate:   false,
+				testAlphaGate: true,
+				testBetaGate:  false,
+			},
+			expectedExplicitlySet: map[Feature]bool{
+				allAlphaGate:  true,
+				allBetaGate:   false,
+				testAlphaGate: false,
+				testBetaGate:  true,
+			},
+		},
+		{
+			arg: "AllAlpha=true,AllBeta=false",
+			expectedFeatureValue: map[Feature]bool{
+				allAlphaGate:  true,
+				allBetaGate:   false,
+				testAlphaGate: true,
+				testBetaGate:  false,
+			},
+			expectedExplicitlySet: map[Feature]bool{
+				allAlphaGate:  true,
+				allBetaGate:   true,
+				testAlphaGate: false,
+				testBetaGate:  false,
+			},
+		},
+	}
+	for i, test := range tests {
+		t.Run(test.arg, func(t *testing.T) {
+			fs := pflag.NewFlagSet("testfeaturegateflag", pflag.ContinueOnError)
+			f := NewVersionedFeatureGate(version.MustParse("1.29"))
+			err := f.AddVersioned(map[Feature]VersionedSpecs{
+				testAlphaGate: {
+					{Version: version.MustParse("1.29"), Default: false, PreRelease: Alpha},
+				},
+				testBetaGate: {
+					{Version: version.MustParse("1.29"), Default: false, PreRelease: Beta},
+					{Version: version.MustParse("1.28"), Default: false, PreRelease: Alpha},
+				},
+			})
+			require.NoError(t, err)
+			f.AddFlag(fs)
+
+			var errs []error
+			err = fs.Parse([]string{fmt.Sprintf("--%s=%s", flagName, test.arg)})
+			if err != nil {
+				errs = append(errs, err)
+			}
+			err = utilerrors.NewAggregate(errs)
+			require.NoError(t, err)
+			for k, v := range test.expectedFeatureValue {
+				if actual := f.Enabled(k); actual != v {
+					t.Errorf("%d: expected %s=%v, Got %v", i, k, v, actual)
+				}
+			}
+			for k, v := range test.expectedExplicitlySet {
+				if actual := f.ExplicitlySet(k); actual != v {
+					t.Errorf("%d: expected ExplicitlySet(%s)=%v, Got %v", i, k, v, actual)
+				}
+			}
+		})
+	}
+}
+
+func TestResetFeatureValueToDefault(t *testing.T) {
+	// gates for testing
+	const testAlphaGate Feature = "TestAlpha"
+	const testBetaGate Feature = "TestBeta"
+
+	f := NewVersionedFeatureGate(version.MustParse("1.29"))
+	err := f.AddVersioned(map[Feature]VersionedSpecs{
+		testAlphaGate: {
+			{Version: version.MustParse("1.29"), Default: false, PreRelease: Alpha},
+		},
+		testBetaGate: {
+			{Version: version.MustParse("1.29"), Default: true, PreRelease: Beta},
+			{Version: version.MustParse("1.28"), Default: false, PreRelease: Alpha},
+		},
+	})
+	require.NoError(t, err)
+
+	fs := pflag.NewFlagSet("testfeaturegateflag", pflag.ContinueOnError)
+	assert.False(t, f.Enabled("AllAlpha"))
+	assert.False(t, f.Enabled("AllBeta"))
+	assert.False(t, f.Enabled("TestAlpha"))
+	assert.True(t, f.Enabled("TestBeta"))
+
+	f.AddFlag(fs)
+	var errs []error
+	err = fs.Parse([]string{fmt.Sprintf("--%s=%s", flagName, "AllAlpha=true,TestBeta=false")})
+	if err != nil {
+		errs = append(errs, err)
+	}
+	err = utilerrors.NewAggregate(errs)
+	require.NoError(t, err)
+	assert.True(t, f.Enabled("AllAlpha"))
+	assert.False(t, f.Enabled("AllBeta"))
+	assert.True(t, f.Enabled("TestAlpha"))
+	assert.False(t, f.Enabled("TestBeta"))
+
+	require.NoError(t, f.ResetFeatureValueToDefault("AllAlpha"))
+	assert.False(t, f.Enabled("AllAlpha"))
+	assert.False(t, f.Enabled("AllBeta"))
+	assert.True(t, f.Enabled("TestAlpha"))
+	assert.False(t, f.Enabled("TestBeta"))
+
+	require.NoError(t, f.ResetFeatureValueToDefault("TestBeta"))
+	assert.False(t, f.Enabled("AllAlpha"))
+	assert.False(t, f.Enabled("AllBeta"))
+	assert.True(t, f.Enabled("TestAlpha"))
+	assert.True(t, f.Enabled("TestBeta"))
+
+	f.OpenForModification()
+	require.NoError(t, f.SetEmulationVersion(version.MustParse("1.28")))
+	assert.False(t, f.Enabled("AllAlpha"))
+	assert.False(t, f.Enabled("AllBeta"))
+	assert.False(t, f.Enabled("TestAlpha"))
+	assert.False(t, f.Enabled("TestBeta"))
+}

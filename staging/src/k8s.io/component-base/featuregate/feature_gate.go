@@ -188,15 +188,11 @@ type MutableVersionedFeatureGate interface {
 	// overriding its default to true for a limited number of components without simultaneously
 	// changing its default for all consuming components.
 	OverrideDefaultAtVersion(name Feature, override bool, ver *version.Version) error
-}
-
-// MutableVersionedFeatureGateForTests is a feature gate interface that should only be used in tests.
-type MutableVersionedFeatureGateForTests interface {
-	MutableVersionedFeatureGate
-	// Reset sets the enabled and enabledRaw to the input map.
-	Reset(m map[string]bool)
-	// EnabledRawMap returns the raw enable map from the feature gate.
-	EnabledRawMap() map[string]bool
+	// ExplicitlySet returns true if the feature is explicitly set instead of
+	// being derived from special features.
+	ExplicitlySet(name Feature) bool
+	// ResetFeatureValueToDefault resets the value of the feature back to the default value.
+	ResetFeatureValueToDefault(name Feature) error
 }
 
 // featureGate implements FeatureGate as well as pflag.Value for flag parsing.
@@ -725,21 +721,38 @@ func (f *featureGate) DeepCopy() MutableVersionedFeatureGate {
 	return fg
 }
 
-// Reset sets the enabled and enabledRaw to the input map.
-func (f *featureGate) Reset(m map[string]bool) {
-	enabled := map[Feature]bool{}
-	enabledRaw := map[string]bool{}
-	queriedFeatures := map[Feature]struct{}{}
-	f.enabled.Store(enabled)
-	f.enabledRaw.Store(enabledRaw)
-	_ = f.SetFromMap(m)
-	f.closedForModification.Store(false)
-	f.queriedFeatures.Store(queriedFeatures)
-	f.lock.Lock()
-	defer f.lock.Unlock()
-	f.closed = false
+// ExplicitlySet returns true if the feature is explicitly set instead of
+// being derived from special features.
+func (f *featureGate) ExplicitlySet(name Feature) bool {
+	enabledRaw := f.enabledRaw.Load().(map[string]bool)
+	_, ok := enabledRaw[string(name)]
+	return ok
 }
 
-func (f *featureGate) EnabledRawMap() map[string]bool {
-	return f.enabledRaw.Load().(map[string]bool)
+// ResetFeatureValueToDefault resets the value of the feature back to the default value.
+func (f *featureGate) ResetFeatureValueToDefault(name Feature) error {
+	enabled := map[Feature]bool{}
+	for k, v := range f.enabled.Load().(map[Feature]bool) {
+		enabled[k] = v
+	}
+	enabledRaw := map[string]bool{}
+	for k, v := range f.enabledRaw.Load().(map[string]bool) {
+		enabledRaw[k] = v
+	}
+	_, inEnabled := enabled[name]
+	if inEnabled {
+		delete(enabled, name)
+	}
+	_, inEnabledRaw := enabledRaw[string(name)]
+	if inEnabledRaw {
+		delete(enabledRaw, string(name))
+	}
+	// some features could be in enabled map but not enabledRaw map,
+	// for example some Alpha feature when AllAlpha is set.
+	if inEnabledRaw && !inEnabled {
+		return fmt.Errorf("feature:%s was explicitly set, but not in enabled map", name)
+	}
+	f.enabled.Store(enabled)
+	f.enabledRaw.Store(enabledRaw)
+	return nil
 }

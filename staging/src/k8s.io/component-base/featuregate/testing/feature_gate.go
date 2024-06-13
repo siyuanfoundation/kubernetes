@@ -47,8 +47,9 @@ func init() {
 func SetFeatureGateDuringTest(tb TB, gate featuregate.FeatureGate, f featuregate.Feature, value bool) {
 	tb.Helper()
 	detectParallelOverrideCleanup := detectParallelOverride(tb, f)
-	originalEnabled := gate.(featuregate.MutableVersionedFeatureGateForTests).EnabledRawMap()
+	originalValue := gate.Enabled(f)
 	originalEmuVer := gate.(featuregate.MutableVersionedFeatureGate).EmulationVersion()
+	originalExplicitlySet := gate.(featuregate.MutableVersionedFeatureGate).ExplicitlySet(f)
 
 	// Specially handle AllAlpha and AllBeta
 	if f == "AllAlpha" || f == "AllBeta" {
@@ -75,7 +76,15 @@ func SetFeatureGateDuringTest(tb TB, gate featuregate.FeatureGate, f featuregate
 			tb.Fatalf("change of feature gate emulation version from %s to %s in the chain of SetFeatureGateDuringTest is not allowed\nuse SetFeatureGateEmulationVersionDuringTest to change emulation version in tests",
 				originalEmuVer.String(), emuVer.String())
 		}
-		gate.(featuregate.MutableVersionedFeatureGateForTests).Reset(originalEnabled)
+		if originalExplicitlySet {
+			if err := gate.(featuregate.MutableFeatureGate).Set(fmt.Sprintf("%s=%v", f, originalValue)); err != nil {
+				tb.Errorf("error restoring %s=%v: %v", f, originalValue, err)
+			}
+		} else {
+			if err := gate.(featuregate.MutableVersionedFeatureGate).ResetFeatureValueToDefault(f); err != nil {
+				tb.Errorf("error restoring %s=%v: %v", f, originalValue, err)
+			}
+		}
 	})
 }
 
