@@ -1314,7 +1314,6 @@ func TestVersionedFeatureGateOverrideDefault(t *testing.T) {
 		if !f.Enabled("TestFeature2") {
 			t.Error("expected TestFeature2 to have effective default of true")
 		}
-		f.OpenForModification()
 		require.NoError(t, f.SetEmulationVersion(version.MustParse("1.29")))
 		if !f.Enabled("TestFeature1") {
 			t.Error("expected TestFeature1 to have effective default of true")
@@ -1322,7 +1321,6 @@ func TestVersionedFeatureGateOverrideDefault(t *testing.T) {
 		if f.Enabled("TestFeature2") {
 			t.Error("expected TestFeature2 to have effective default of false")
 		}
-		f.OpenForModification()
 		require.NoError(t, f.SetEmulationVersion(version.MustParse("1.26")))
 		if f.Enabled("TestFeature1") {
 			t.Error("expected TestFeature1 to have effective default of false")
@@ -1530,36 +1528,6 @@ func TestFeatureSpecAtEmulationVersion(t *testing.T) {
 	}
 }
 
-func TestOpenForModification(t *testing.T) {
-	const testBetaGate Feature = "testBetaGate"
-	f := NewVersionedFeatureGate(version.MustParse("1.29"))
-
-	err := f.AddVersioned(map[Feature]VersionedSpecs{
-		testBetaGate: {
-			{Version: version.MustParse("1.29"), Default: true, PreRelease: Beta},
-			{Version: version.MustParse("1.28"), Default: false, PreRelease: Beta},
-			{Version: version.MustParse("1.26"), Default: false, PreRelease: Alpha},
-		},
-	})
-	require.NoError(t, err)
-
-	if f.Enabled(testBetaGate) != true {
-		t.Errorf("Expected true")
-	}
-	err = f.SetEmulationVersion(version.MustParse("1.28"))
-	if err == nil {
-		t.Fatalf("Expected error when SetEmulationVersion after querying features")
-	}
-	if f.Enabled(testBetaGate) != true {
-		t.Errorf("Expected true")
-	}
-	f.OpenForModification()
-	require.NoError(t, f.SetEmulationVersion(version.MustParse("1.28")))
-	if f.Enabled(testBetaGate) != false {
-		t.Errorf("Expected false at 1.28")
-	}
-}
-
 func TestExplicitlySet(t *testing.T) {
 	// gates for testing
 	const testAlphaGate Feature = "TestAlpha"
@@ -1701,7 +1669,6 @@ func TestResetFeatureValueToDefault(t *testing.T) {
 	assert.True(t, f.Enabled("TestAlpha"))
 	assert.True(t, f.Enabled("TestBeta"))
 
-	f.OpenForModification()
 	require.NoError(t, f.SetEmulationVersion(version.MustParse("1.28")))
 	assert.False(t, f.Enabled("AllAlpha"))
 	assert.False(t, f.Enabled("AllBeta"))

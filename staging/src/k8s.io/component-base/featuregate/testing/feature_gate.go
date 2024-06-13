@@ -98,14 +98,12 @@ func SetFeatureGateEmulationVersionDuringTest(tb TB, gate featuregate.FeatureGat
 	tb.Helper()
 	detectParallelOverrideCleanup := detectParallelOverrideEmulationVersion(tb, ver)
 	originalEmuVer := gate.(featuregate.MutableVersionedFeatureGate).EmulationVersion()
-	gate.(featuregate.MutableVersionedFeatureGate).OpenForModification()
 	if err := gate.(featuregate.MutableVersionedFeatureGate).SetEmulationVersion(ver); err != nil {
 		tb.Fatalf("failed to set emulation version to %s during test", ver.String())
 	}
 	tb.Cleanup(func() {
 		tb.Helper()
 		detectParallelOverrideCleanup()
-		gate.(featuregate.MutableVersionedFeatureGate).OpenForModification()
 		if err := gate.(featuregate.MutableVersionedFeatureGate).SetEmulationVersion(originalEmuVer); err != nil {
 			tb.Fatalf("failed to restore emulation version to %s during test", originalEmuVer.String())
 		}

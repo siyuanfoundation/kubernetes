@@ -130,9 +130,6 @@ type MutableFeatureGate interface {
 	AddFlag(fs *pflag.FlagSet)
 	// Close sets closed to true, and prevents subsequent calls to Add
 	Close()
-	// OpenForModification sets closedForModification to false, and allows subsequent calls to SetEmulationVersion to change enabled features
-	// before the next Enabled is called.
-	OpenForModification()
 	// Set parses and stores flag gates for known features
 	// from a string like feature1=true,feature2=false,...
 	Set(value string) error
@@ -169,8 +166,6 @@ type MutableVersionedFeatureGate interface {
 	// SetEmulationVersion overrides the emulationVersion of the feature gate.
 	// Otherwise, the emulationVersion will be the same as the binary version.
 	// If set, the feature defaults and availability will be as if the binary is at the emulated version.
-	// Returns error if the new emulationVersion will change the enablement state of a feature that has already been queried.
-	// If you have to use featureGate.Enabled before parsing the flags, call featureGate.OpenForModification following featureGate.Enabled.
 	SetEmulationVersion(emulationVersion *version.Version) error
 	// GetAll returns a copy of the map of known feature names to versioned feature specs.
 	GetAllVersioned() map[Feature]VersionedSpecs
@@ -213,12 +208,8 @@ type featureGate struct {
 	enabledRaw atomic.Value
 	// closed is set to true when AddFlag is called, and prevents subsequent calls to Add
 	closed bool
-	// closedForModification is set to true when Enabled is called, and prevents subsequent calls to SetEmulationVersion to change the enabled features.
-	// TODO: after all feature gates have migrated to versioned feature gates,
-	// closedForModification should also prevents subsequent calls to Set and SetFromMap to change the enabled features
-	closedForModification atomic.Bool
 	// queriedFeatures stores all the features that have been queried through the Enabled interface.
-	// It is reset when closedForModification is reset.
+	// It is reset when SetEmulationVersion is called.
 	queriedFeatures  atomic.Value
 	emulationVersion atomic.Pointer[version.Version]
 }
@@ -533,22 +524,21 @@ func (f *featureGate) SetEmulationVersion(emulationVersion *version.Version) err
 	enabled := map[Feature]bool{}
 	errs := f.unsafeSetFromMap(enabled, enabledRaw, emulationVersion)
 
-	if f.closedForModification.Load() {
-		queriedFeatures := f.queriedFeatures.Load().(map[Feature]struct{})
-		known := f.known.Load().(map[Feature]VersionedSpecs)
-		for feature := range queriedFeatures {
-			newVal := featureEnabled(feature, enabled, known, emulationVersion)
-			oldVal := f.Enabled(feature)
-			// it is ok to modify emulation version if it does not result in feature enablemennt change for features that have already been queried.
-			if newVal != oldVal {
-				errs = append(errs, fmt.Errorf("SetEmulationVersion will change already queried feature:%s from %v to %v\ncall featureGate.OpenForModification() first to override", feature, oldVal, newVal))
-			}
+	queriedFeatures := f.queriedFeatures.Load().(map[Feature]struct{})
+	known := f.known.Load().(map[Feature]VersionedSpecs)
+	for feature := range queriedFeatures {
+		newVal := featureEnabled(feature, enabled, known, emulationVersion)
+		oldVal := f.Enabled(feature)
+		if newVal != oldVal {
+			klog.Warningf("SetEmulationVersion will change already queried feature:%s from %v to %v", feature, oldVal, newVal)
 		}
 	}
+
 	if len(errs) == 0 {
 		// Persist changes
 		f.enabled.Store(enabled)
 		f.emulationVersion.Store(emulationVersion)
+		f.queriedFeatures.Store(map[Feature]struct{}{})
 	}
 	return utilerrors.NewAggregate(errs)
 }
@@ -574,7 +564,6 @@ func (f *featureGate) recordQueried(key Feature) {
 	}
 	queriedFeatures[key] = struct{}{}
 	f.queriedFeatures.Store(queriedFeatures)
-	f.closedForModification.Store(true)
 }
 
 func featureEnabled(key Feature, enabled map[Feature]bool, known map[Feature]VersionedSpecs, emulationVersion *version.Version) bool {
@@ -620,20 +609,6 @@ func (f *featureGate) Close() {
 	f.lock.Lock()
 	f.closed = true
 	f.lock.Unlock()
-}
-
-// OpenForModification sets closedForModification to false, and allows subsequent calls to SetEmulationVersion to change enabled features
-// before the next Enabled is called.
-func (f *featureGate) OpenForModification() {
-	queriedFeatures := []Feature{}
-	for feature := range f.queriedFeatures.Load().(map[Feature]struct{}) {
-		queriedFeatures = append(queriedFeatures, feature)
-	}
-	if len(queriedFeatures) > 0 {
-		klog.Warningf("open feature gate for modification after querying features: %v.", queriedFeatures)
-	}
-	f.closedForModification.Store(false)
-	f.queriedFeatures.Store(map[Feature]struct{}{})
 }
 
 // AddFlag adds a flag for setting global feature gates to the specified FlagSet.
@@ -708,7 +683,7 @@ func (f *featureGate) DeepCopy() MutableVersionedFeatureGate {
 
 	// Construct a new featureGate around the copied state.
 	// Note that specialFeatures is treated as immutable by convention,
-	// and we maintain the value of f.closed across the copy, but resets closedForModification.
+	// and we maintain the value of f.closed across the copy.
 	fg := &featureGate{
 		special: specialFeatures,
 		closed:  f.closed,
