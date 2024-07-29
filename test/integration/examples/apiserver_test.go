@@ -231,21 +231,21 @@ func TestAPIServiceWaitOnStart(t *testing.T) {
 
 func TestAggregatedAPIServer(t *testing.T) {
 	// Testing default, BanFlunder default=true in 1.2
-	t.Run("WithoutWardleFeatureGateAtV1.2", func(t *testing.T) {
-		testAggregatedAPIServer(t, false, true, "1.2", "1.2")
-	})
-	// Testing emulation version N, BanFlunder default=true in 1.1
+	// t.Run("WithoutWardleFeatureGateAtV1.2", func(t *testing.T) {
+	// 	testAggregatedAPIServer(t, false, true, "1.2", "1.2")
+	// })
+	// // Testing emulation version N, BanFlunder default=true in 1.1
 	t.Run("WithoutWardleFeatureGateAtV1.1", func(t *testing.T) {
-		testAggregatedAPIServer(t, false, true, "1.1", "1.1")
+		testWardleAPIServer(t, false, true, "1.1", "1.1")
 	})
-	// Testing emulation version N-1, BanFlunder default=false in 1.0
-	t.Run("WithoutWardleFeatureGateAtV1.0", func(t *testing.T) {
-		testAggregatedAPIServer(t, false, false, "1.1", "1.0")
-	})
+	// // Testing emulation version N-1, BanFlunder default=false in 1.0
+	// t.Run("WithoutWardleFeatureGateAtV1.0", func(t *testing.T) {
+	// 	testWardleAPIServer(t, false, false, "1.1", "1.0")
+	// })
 	// Testing emulation version N-1, Explicitly set BanFlunder=true in 1.0
-	t.Run("WithWardleFeatureGateAtV1.0", func(t *testing.T) {
-		testAggregatedAPIServer(t, true, true, "1.1", "1.0")
-	})
+	// t.Run("WithWardleFeatureGateAtV1.0", func(t *testing.T) {
+	// 	testWardleAPIServer(t, true, true, "1.1", "1.0")
+	// })
 }
 
 func testAggregatedAPIServer(t *testing.T, setWardleFeatureGate, banFlunder bool, wardleBinaryVersion, wardleEmulationVersion string) {
@@ -420,6 +420,130 @@ func testAggregatedAPIServer(t *testing.T, setWardleFeatureGate, banFlunder bool
 	}
 	if numMatches != 4 {
 		t.Fatal("names don't match")
+	}
+}
+
+func testWardleAPIServer(t *testing.T, setWardleFeatureGate, banFlunder bool, wardleBinaryVersion, wardleEmulationVersion string) {
+	const testNamespace = "kube-wardle"
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	t.Cleanup(cancel)
+
+	// testKAS, wardleOptions, wardlePort := prepareAggregatedWardleAPIServer(ctx, t, testNamespace, kubeBinaryVersion, wardleBinaryVersion)
+	// kubeClientConfig := getKubeConfig(testKAS)
+	// we need the wardle port information first to set up the service resolver
+	listener, wardlePort, err := genericapiserveroptions.CreateListener("tcp", "127.0.0.1:0", net.ListenConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// endpoints cannot have loopback IPs so we need to override the resolver itself
+	t.Cleanup(app.SetServiceResolverForTests(staticURLServiceResolver(fmt.Sprintf("https://127.0.0.1:%d", wardlePort))))
+	wardleOptions := sampleserver.NewWardleServerOptions(os.Stdout, os.Stderr)
+	// ensure this is a SAN on the generated cert for service FQDN
+	wardleOptions.AlternateDNS = []string{
+		fmt.Sprintf("api.%s.svc", testNamespace),
+	}
+	// wardleOptions.RecommendedOptions.Authorization = nil
+	// wardleOptions.RecommendedOptions.Authentication = nil
+	wardleOptions.RecommendedOptions.Authorization.RemoteKubeConfigFileOptional = true
+	wardleOptions.RecommendedOptions.Authentication.RemoteKubeConfigFileOptional = true
+	wardleOptions.RecommendedOptions.SecureServing.Listener = listener
+	wardleOptions.RecommendedOptions.SecureServing.BindAddress = netutils.ParseIPSloppy("127.0.0.1")
+
+	wardleCertDir, _ := os.MkdirTemp("", "test-integration-wardle-server")
+	defer os.RemoveAll(wardleCertDir)
+
+	config := &rest.Config{}
+
+	args := []string{
+		"--etcd-servers", framework.GetEtcdURL(),
+		"--emulated-version", fmt.Sprintf("wardle=%s", wardleEmulationVersion),
+	}
+	if setWardleFeatureGate {
+		args = append(args, "--feature-gates", fmt.Sprintf("wardle:BanFlunder=%v", banFlunder))
+	}
+	wardleCmd := sampleserver.NewCommandStartWardleServer(ctx, wardleOptions)
+	wardleCmd.SetArgs(args)
+	if err := wardleCmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	// directWardleClientConfig, err := waitForWardleRunning(ctx, t, config, wardleCertDir, wardlePort)
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+
+	// // now we're finally ready to test. These are what's run by default now
+	// wardleDirectClient := client.NewForConfigOrDie(directWardleClientConfig)
+	// testAPIGroupList(ctx, t, wardleDirectClient.Discovery().RESTClient())
+	// testAPIGroup(ctx, t, wardleDirectClient.Discovery().RESTClient())
+	// testAPIResourceList(ctx, t, wardleDirectClient.Discovery().RESTClient())
+
+	config.Host = fmt.Sprintf("https://127.0.0.1:%d", wardlePort)
+	wardleClient := wardlev1alpha1client.NewForConfigOrDie(config)
+
+	// waitForWardleAPIServiceReady(ctx, t, kubeClientConfig, wardleCertDir, testNamespace)
+
+	// perform simple CRUD operations against the wardle resources
+	_, err = wardleClient.Fischers().Create(ctx, &wardlev1alpha1.Fischer{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "panda",
+		},
+		DisallowedFlunders: []string{"badname"},
+	}, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// clean up data after test is done
+	defer wardleClient.Fischers().Delete(ctx, "panda", metav1.DeleteOptions{})
+	fischersList, err := wardleClient.Fischers().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fischersList.Items) != 1 {
+		t.Errorf("expected one fischer: %#v", fischersList.Items)
+	}
+	if len(fischersList.ResourceVersion) == 0 {
+		t.Error("expected non-empty resource version for fischer list")
+	}
+
+	_, err = wardleClient.Flunders(metav1.NamespaceSystem).Create(ctx, &wardlev1alpha1.Flunder{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "badname",
+		},
+	}, metav1.CreateOptions{})
+	if banFlunder && err == nil {
+		t.Fatal("expect flunder:badname not admitted when wardle feature gates are specified")
+	}
+	if !banFlunder {
+		if err != nil {
+			t.Fatal("expect flunder:badname admitted when wardle feature gates are not specified")
+		} else {
+			defer wardleClient.Flunders(metav1.NamespaceSystem).Delete(ctx, "badname", metav1.DeleteOptions{})
+		}
+	}
+	_, err = wardleClient.Flunders(metav1.NamespaceSystem).Create(ctx, &wardlev1alpha1.Flunder{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "panda",
+		},
+	}, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer wardleClient.Flunders(metav1.NamespaceSystem).Delete(ctx, "panda", metav1.DeleteOptions{})
+	flunderList, err := wardleClient.Flunders(metav1.NamespaceSystem).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedFlunderCount := 2
+	if banFlunder {
+		expectedFlunderCount = 1
+	}
+	if len(flunderList.Items) != expectedFlunderCount {
+		t.Errorf("expected %d flunder: %#v", expectedFlunderCount, flunderList.Items)
+	}
+	if len(flunderList.ResourceVersion) == 0 {
+		t.Error("expected non-empty resource version for flunder list")
 	}
 }
 

@@ -17,6 +17,8 @@ limitations under the License.
 package options
 
 import (
+	"fmt"
+
 	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/admission"
@@ -96,6 +98,7 @@ func (o *RecommendedOptions) AddFlags(fs *pflag.FlagSet) {
 // ApplyTo adds RecommendedOptions to the server configuration.
 // pluginInitializers can be empty, it is only need for additional initializers.
 func (o *RecommendedOptions) ApplyTo(config *server.RecommendedConfig) error {
+	fmt.Println("sizhangDebug: start (o *RecommendedOptions) ApplyTo")
 	if err := o.Etcd.ApplyTo(&config.Config); err != nil {
 		return err
 	}
@@ -108,18 +111,24 @@ func (o *RecommendedOptions) ApplyTo(config *server.RecommendedConfig) error {
 	if err := o.SecureServing.ApplyTo(&config.Config.SecureServing, &config.Config.LoopbackClientConfig); err != nil {
 		return err
 	}
+	fmt.Println("sizhangDebug: start Authentication.ApplyTo")
 	if err := o.Authentication.ApplyTo(&config.Config.Authentication, config.SecureServing, config.OpenAPIConfig); err != nil {
 		return err
 	}
+	fmt.Println("sizhangDebug: end Authentication.ApplyTo")
+	fmt.Println("sizhangDebug: start Authorization.ApplyTo")
 	if err := o.Authorization.ApplyTo(&config.Config.Authorization); err != nil {
 		return err
 	}
+	fmt.Println("sizhangDebug: end Authorization.ApplyTo")
 	if err := o.Audit.ApplyTo(&config.Config); err != nil {
 		return err
 	}
+	fmt.Println("sizhangDebug: end Audit.ApplyTo")
 	if err := o.CoreAPI.ApplyTo(config); err != nil {
 		return err
 	}
+	fmt.Println("sizhangDebug: end CoreAPI.ApplyTo")
 	var kubeClient *kubernetes.Clientset
 	var dynamicClient *dynamic.DynamicClient
 	if config.ClientConfig != nil {
@@ -133,6 +142,7 @@ func (o *RecommendedOptions) ApplyTo(config *server.RecommendedConfig) error {
 			return err
 		}
 	}
+	fmt.Println("sizhangDebug: start Features.ApplyTo")
 	if err := o.Features.ApplyTo(&config.Config, kubeClient, config.SharedInformerFactory); err != nil {
 		return err
 	}
@@ -144,6 +154,7 @@ func (o *RecommendedOptions) ApplyTo(config *server.RecommendedConfig) error {
 		initializers...); err != nil {
 		return err
 	}
+	fmt.Println("sizhangDebug: end (o *RecommendedOptions) ApplyTo")
 	return nil
 }
 
