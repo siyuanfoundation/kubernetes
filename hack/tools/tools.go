@@ -36,4 +36,6 @@ import (
 
 	// tools like cpu
 	_ "go.uber.org/automaxprocs"
+
+	_ "k8s.io/hack/linters"
 )

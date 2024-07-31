@@ -13,6 +13,7 @@ require (
 	gotest.tools/gotestsum v1.6.4
 	honnef.co/go/tools v0.5.0-rc.1
 	sigs.k8s.io/logtools v0.8.1
+	k8s.io/hack/linters v0.0.0
 )
 
 require (
@@ -206,4 +207,8 @@ require (
 	mvdan.cc/interfacer v0.0.0-20180901003855-c20040233aed // indirect
 	mvdan.cc/lint v0.0.0-20170908181259-adc824a0674b // indirect
 	mvdan.cc/unparam v0.0.0-20240104100049-c549a3470d14 // indirect
+)
+
+replace (
+	k8s.io/hack/linters => ../linters
 )

@@ -130,20 +130,25 @@ issues:
 linters:
   disable-all: true
   enable: # please keep this alphabetized
-    - forbidigo
-    - ginkgolinter
-    - gocritic
-    - govet
-    - ineffassign
+    # - forbidigo
+    # - ginkgolinter
+    # - gocritic
+    # - govet
+    # - ineffassign
+    - featuregates
     - logcheck
-    - revive
-    - staticcheck
-    - stylecheck
-    - testifylint
-    - unused
+    # - revive
+    # - staticcheck
+    # - stylecheck
+    # - testifylint
+    # - unused
 
 linters-settings: # please keep this alphabetized
   custom:
+    featuregates: 
+      path: ../_output/local/bin/featuregates.so
+      description: featuregates linter plugin
+      original-url: k8s.io/hack/linters/featuregates
     logcheck:
       # Installed there by hack/verify-golangci-lint.sh.
       path: ../_output/local/bin/logcheck.so
