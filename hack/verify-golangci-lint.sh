@@ -126,6 +126,8 @@ if [ "${golangci_config}" ]; then
   # This cannot be used without a config.
   # This uses `go build` because `go install -buildmode=plugin` doesn't work
   # (on purpose: https://github.com/golang/go/issues/64964).
+  GOTOOLCHAIN="$(kube::golang::hack_tools_gotoolchain)" go -C "${KUBE_ROOT}/hack/tools" build -o "${GOBIN}/featuregates.so" -buildmode=plugin k8s.io/hack/linters/featuregates/plugin
+  # go -C "${KUBE_ROOT}/hack/tools" build -o "${GOBIN}/featuregates.so" -buildmode=plugin k8s.io/hack/linters/featuregates/plugin
   GOTOOLCHAIN="$(kube::golang::hack_tools_gotoolchain)" go -C "${KUBE_ROOT}/hack/tools" build -o "${GOBIN}/logcheck.so" -buildmode=plugin sigs.k8s.io/logtools/logcheck/plugin
 fi
 
@@ -143,6 +145,7 @@ Result:
 $failures
 EOF
     exit 1
+  
 fi
 
 if [ "${golangci_config}" ]; then

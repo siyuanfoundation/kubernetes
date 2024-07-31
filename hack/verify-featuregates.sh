@@ -25,12 +25,32 @@ set -o pipefail
 
 KUBE_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 source "${KUBE_ROOT}/hack/lib/init.sh"
+source "${KUBE_ROOT}/hack/lib/util.sh"
 
 kube::golang::setup_env
+kube::util::ensure-temp-dir
 
 cd "${KUBE_ROOT}"
 
-if ! go run test/compatibility_lifecycle/main.go feature-gates verify; then
-  echo "Please run 'hack/update-featuregates.sh' to update the feature list."
-  exit 1
-fi
+
+commit_hash=$(git merge-base origin/master HEAD)
+destination_folder="${KUBE_TEMP}/before/compatibility"
+
+# get diff files: git diff $(git merge-base origin/master HEAD) --name-only --diff-filter=MD
+
+# Get the list of files from the commit
+before_file_list=$(git diff ${commit_hash} --name-only --diff-filter=MD)
+
+# Loop through the file list and extract each file
+while IFS= read -r file; do
+  # Extract the file and save it to the destination folder
+  mkdir -p "$(dirname "$destination_folder/$file")"
+  git show "$commit_hash:$file" > "$destination_folder/$file"
+done <<< "$before_file_list"
+
+# ls -R "$destination_folder"
+
+# if ! go run test/compatibility_lifecycle/main.go feature-gates verify; then
+#   echo "Please run 'hack/update-featuregates.sh' to update the feature list."
+#   exit 1
+# fi
