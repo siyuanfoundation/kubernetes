@@ -17,6 +17,7 @@ require (
 	honnef.co/go/tools v0.6.0
 	k8s.io/publishing-bot v0.5.0
 	sigs.k8s.io/logtools v0.8.1
+	k8s.io/hack/linters v0.0.0
 )
 
 require (
@@ -211,4 +212,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	mvdan.cc/gofumpt v0.7.0 // indirect
 	mvdan.cc/unparam v0.0.0-20240528143540-8a5130ca722f // indirect
+)
+
+replace (
+	k8s.io/hack/linters => ../linters
 )

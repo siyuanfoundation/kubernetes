@@ -40,4 +40,6 @@ import (
 	// for publishing bot
 	_ "golang.org/x/mod/modfile"
 	_ "k8s.io/publishing-bot/cmd/publishing-bot/config"
+
+	_ "k8s.io/hack/linters"
 )
