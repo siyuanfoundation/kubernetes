@@ -36,13 +36,13 @@ import (
 	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
+	"k8s.io/apiserver/pkg/util/compatibility"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/apiserver/pkg/util/openapi"
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/component-base/featuregate"
 	logsapi "k8s.io/component-base/logs/api/v1"
-	utilversion "k8s.io/component-base/version"
 	"k8s.io/klog/v2"
 )
 
@@ -127,7 +127,7 @@ func StartTestServer(t Logger, _ *TestServerInstanceOptions, customFlags []strin
 	featureGate := utilfeature.DefaultMutableFeatureGate
 
 	// Configure the effective version.
-	effectiveVersion := utilversion.DefaultKubeEffectiveVersion()
+	effectiveVersion := compatibility.DefaultKubeEffectiveVersion()
 	effectiveVersion.SetEmulationVersion(featureGate.EmulationVersion())
 
 	featuregate.DefaultComponentGlobalsRegistry.Reset()

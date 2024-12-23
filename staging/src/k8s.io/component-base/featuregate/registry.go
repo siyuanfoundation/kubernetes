@@ -33,7 +33,7 @@ import (
 // DefaultComponentGlobalsRegistry is the global var to store the effective versions and feature gates for all components for easy access.
 // Example usage:
 // // register the component effective version and feature gate first
-// _, _ = utilversion.DefaultComponentGlobalsRegistry.ComponentGlobalsOrRegister(utilversion.DefaultKubeComponent, utilversion.DefaultKubeEffectiveVersion(), utilfeature.DefaultMutableFeatureGate)
+// _, _ = utilversion.DefaultComponentGlobalsRegistry.ComponentGlobalsOrRegister(utilversion.DefaultKubeComponent, compatibility.DefaultKubeEffectiveVersion(), utilfeature.DefaultMutableFeatureGate)
 // wardleEffectiveVersion := utilversion.NewEffectiveVersion("1.2")
 // wardleFeatureGate := featuregate.NewFeatureGate()
 // utilruntime.Must(utilversion.DefaultComponentGlobalsRegistry.Register(apiserver.WardleComponentName, wardleEffectiveVersion, wardleFeatureGate, false))
