@@ -188,7 +188,7 @@ func StartTestServer(t ktesting.TB, instanceOptions *TestServerInstanceOptions, 
 
 	featureGate := utilfeature.DefaultMutableFeatureGate.DeepCopy()
 	featureGate.AddMetrics()
-	effectiveVersion := compatibility.DefaultKubeEffectiveVersion()
+	effectiveVersion := compatibility.DefaultKubeEffectiveVersionForTest()
 	effectiveVersion.SetEmulationVersion(featureGate.EmulationVersion())
 	componentGlobalsRegistry := basecompatibility.NewComponentGlobalsRegistry()
 	if err := componentGlobalsRegistry.Register(basecompatibility.DefaultKubeComponent, effectiveVersion, featureGate); err != nil {

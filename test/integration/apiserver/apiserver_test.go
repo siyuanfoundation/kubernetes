@@ -3301,7 +3301,7 @@ func TestAllowedEmulationVersions(t *testing.T) {
 	}{
 		{
 			name:             "default",
-			emulationVersion: compatibility.DefaultKubeEffectiveVersion().EmulationVersion().String(),
+			emulationVersion: compatibility.DefaultKubeEffectiveVersionForTest().EmulationVersion().String(),
 		},
 	}
 
