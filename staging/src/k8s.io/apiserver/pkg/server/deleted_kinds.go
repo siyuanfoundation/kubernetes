@@ -28,13 +28,16 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	apimachineryversion "k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apiserver/pkg/registry/rest"
+	serverstorage "k8s.io/apiserver/pkg/server/storage"
 	"k8s.io/klog/v2"
 )
 
 // resourceExpirationEvaluator holds info for deciding if a particular rest.Storage needs to excluded from the API
 type resourceExpirationEvaluator struct {
-	currentVersion *apimachineryversion.Version
-	isAlpha        bool
+	currentVersion             *apimachineryversion.Version
+	emulationForwardCompatible bool
+	APIResourceConfigSource    serverstorage.APIResourceConfigSource
+	isAlpha                    bool
 	// This is usually set for testing for which tests need to be removed.  This prevent insta-failing CI.
 	// Set KUBE_APISERVER_STRICT_REMOVED_API_HANDLING_IN_ALPHA to see what will be removed when we tag beta
 	strictRemovedHandlingInAlpha bool
@@ -152,12 +155,42 @@ type introducedInterface interface {
 // versionedResourcesStorageMap mirrors the field on APIGroupInfo, it's a map from version to resource to the storage.
 func (e *resourceExpirationEvaluator) RemoveDeletedKinds(groupName string, versioner runtime.ObjectVersioner, versionedResourcesStorageMap map[string]map[string]rest.Storage) {
 	versionsToRemove := sets.NewString()
-	for apiVersion := range sets.StringKeySet(versionedResourcesStorageMap) {
+	prioritizedVersions := versioner.PrioritizedVersionsForGroup(groupName)
+	enabledResources := sets.NewString()
+
+	// iterate from the end to the front, so that we remove the older versions first.
+	for i := len(prioritizedVersions) - 1; i >= 0; i-- {
+		apiVersion := prioritizedVersions[i].Version
+		fmt.Printf("sizhangDebug: apiVersion=%s\n", apiVersion)
 		versionToResource := versionedResourcesStorageMap[apiVersion]
 		resourcesToRemove := sets.NewString()
 		for resourceName, resourceServingInfo := range versionToResource {
+			gvr := schema.GroupVersionResource{Group: groupName, Version: apiVersion, Resource: resourceName}
+			// respect the explicitly set runtime configs for specific resources over prerelease lifecycle.
+			var explicitlyEnabled *bool
+			if e.APIResourceConfigSource != nil {
+				explicitlyEnabled = e.APIResourceConfigSource.ResourceExplicitlyEnabled(gvr)
+			}
+			if explicitlyEnabled != nil {
+				if *explicitlyEnabled {
+					enabledResources.Insert(resourceName)
+				} else {
+					resourcesToRemove.Insert(resourceName)
+				}
+				continue
+			}
+			// if an earlier version of the resource has been enabled, the same resource with higher priority
+			// should also be enabled if emulationForwardCompatible.
+			if e.emulationForwardCompatible {
+				fmt.Printf("sizhangDebug: ver=%s, resourceName=%s, enabledResources=%v\n", apiVersion, resourceName, enabledResources.List())
+			}
+			if e.emulationForwardCompatible && enabledResources.Has(resourceName) {
+				continue
+			}
 			if !e.shouldServe(schema.GroupVersion{Group: groupName, Version: apiVersion}, versioner, resourceServingInfo) {
 				resourcesToRemove.Insert(resourceName)
+			} else {
+				enabledResources.Insert(resourceName)
 			}
 		}
 

@@ -24,6 +24,7 @@ import (
 type APIResourceConfigSource interface {
 	ResourceEnabled(resource schema.GroupVersionResource) bool
 	AnyResourceForGroupEnabled(group string) bool
+	ResourceExplicitlyEnabled(resource schema.GroupVersionResource) *bool
 }
 
 var _ APIResourceConfigSource = &ResourceConfig{}
@@ -133,6 +134,14 @@ func (o *ResourceConfig) ResourceEnabled(resource schema.GroupVersionResource) b
 	}
 	// they are enabled by default.
 	return true
+}
+
+func (o *ResourceConfig) ResourceExplicitlyEnabled(resource schema.GroupVersionResource) *bool {
+	resourceEnabled, explicitlySet := o.ResourceConfigs[resource]
+	if explicitlySet {
+		return &resourceEnabled
+	}
+	return nil
 }
 
 func (o *ResourceConfig) AnyResourceForGroupEnabled(group string) bool {
