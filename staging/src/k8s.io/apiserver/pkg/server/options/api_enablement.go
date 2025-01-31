@@ -95,6 +95,7 @@ func (s *APIEnablementOptions) ApplyTo(c *server.Config, defaultResourceConfig *
 	}
 
 	mergedResourceConfig, err := resourceconfig.MergeAPIResourceConfigs(defaultResourceConfig, s.RuntimeConfig, registry)
+	// apply forward compatibility based on registry.PrioritizedVersionsAllGroups
 	c.MergedResourceConfig = mergedResourceConfig
 
 	return err

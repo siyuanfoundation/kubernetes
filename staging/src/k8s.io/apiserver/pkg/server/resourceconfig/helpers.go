@@ -36,6 +36,8 @@ type GroupVersionRegistry interface {
 	IsVersionRegistered(v schema.GroupVersion) bool
 	// PrioritizedVersionsAllGroups returns all registered group versions.
 	PrioritizedVersionsAllGroups() []schema.GroupVersion
+	// PrioritizedVersionsForGroup returns versions for a single group in priority order
+	PrioritizedVersionsForGroup(group string) []schema.GroupVersion
 }
 
 // MergeResourceEncodingConfigs merges the given defaultResourceConfig with specific GroupVersionResource overrides.
@@ -189,6 +191,51 @@ func MergeAPIResourceConfigs(
 	}
 
 	return resourceConfig, nil
+}
+
+// EmulationForwardCompatibleResourceConfig creates a new ResourceConfig that enables all higher priority versions of enabled resources,
+// excluding alpha versions, if emulationForwardCompatible is true.
+// This is useful for ensuring forward compatibility when a new version of an API is introduced.
+func EmulationForwardCompatibleResourceConfig(
+	emulationForwardCompatible bool,
+	resourceConfig *serverstore.ResourceConfig,
+	registry GroupVersionRegistry,
+) *serverstore.ResourceConfig {
+	ret := serverstore.NewResourceConfig()
+	if !emulationForwardCompatible {
+		return ret
+	}
+	for gv, enabled := range resourceConfig.GroupVersionConfigs {
+		if !enabled {
+			continue
+		}
+		// EmulationForwardCompatibility is not applicable to alpha apis.
+		if alphaPattern.MatchString(gv.Version) {
+			continue
+		}
+		for _, pgv := range registry.PrioritizedVersionsForGroup(gv.Group) {
+			if pgv.Version == gv.Version {
+				break
+			}
+			ret.EnableVersions(pgv)
+		}
+	}
+	for gvr, enabled := range resourceConfig.ResourceConfigs {
+		if !enabled {
+			continue
+		}
+		// EmulationForwardCompatibility is not applicable to alpha apis.
+		if alphaPattern.MatchString(gvr.Version) {
+			continue
+		}
+		for _, pgv := range registry.PrioritizedVersionsForGroup(gvr.Group) {
+			if pgv.Version == gvr.Version {
+				break
+			}
+			ret.EnableResources(pgv.WithResource(gvr.Resource))
+		}
+	}
+	return ret
 }
 
 func getRuntimeConfigValue(overrides cliflag.ConfigurationMap, apiKey string, defaultValue bool) (bool, error) {
