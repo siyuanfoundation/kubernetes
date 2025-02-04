@@ -190,10 +190,9 @@ func StartTestServer(t ktesting.TB, instanceOptions *TestServerInstanceOptions, 
 	fs := pflag.NewFlagSet("test", pflag.PanicOnError)
 
 	featureGate := utilfeature.DefaultMutableFeatureGate.DeepCopy()
-	featureGate.AddMetrics()
 	effectiveVersion := compatibility.DefaultKubeEffectiveVersionForTest()
 	if instanceOptions.BinaryVersion != "" {
-		effectiveVersion = basecompatibility.NewEffectiveVersionFromString(instanceOptions.BinaryVersion)
+		effectiveVersion = basecompatibility.NewEffectiveVersionFromString(instanceOptions.BinaryVersion, "", "")
 	}
 	effectiveVersion.SetEmulationVersion(featureGate.EmulationVersion())
 	componentGlobalsRegistry := basecompatibility.NewComponentGlobalsRegistry()
@@ -325,15 +324,6 @@ func StartTestServer(t ktesting.TB, instanceOptions *TestServerInstanceOptions, 
 			return result, err
 		}
 		s.Authentication.ClientCert.ClientCA = clientCACertFile
-		if featureGate.Enabled(features.UnknownVersionInteroperabilityProxy) {
-			// TODO: set up a general clean up for testserver
-			if clientgotransport.DialerStopCh == wait.NeverStop {
-				ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
-				t.Cleanup(cancel)
-				clientgotransport.DialerStopCh = ctx.Done()
-			}
-			s.PeerCAFile = filepath.Join(s.SecureServing.ServerCert.CertDirectory, s.SecureServing.ServerCert.PairName+".crt")
-		}
 	}
 
 	s.SecureServing.ExternalAddress = s.SecureServing.Listener.Addr().(*net.TCPAddr).IP // use listener addr although it is a loopback device
@@ -381,6 +371,19 @@ func StartTestServer(t ktesting.TB, instanceOptions *TestServerInstanceOptions, 
 	for f := range utilfeature.DefaultMutableFeatureGate.GetAll() {
 		if featureGate.Enabled(f) != utilfeature.DefaultFeatureGate.Enabled(f) {
 			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, f, featureGate.Enabled(f))
+		}
+	}
+	utilfeature.DefaultMutableFeatureGate.AddMetrics()
+
+	if instanceOptions.EnableCertAuth {
+		if featureGate.Enabled(features.UnknownVersionInteroperabilityProxy) {
+			// TODO: set up a general clean up for testserver
+			if clientgotransport.DialerStopCh == wait.NeverStop {
+				ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
+				t.Cleanup(cancel)
+				clientgotransport.DialerStopCh = ctx.Done()
+			}
+			s.PeerCAFile = filepath.Join(s.SecureServing.ServerCert.CertDirectory, s.SecureServing.ServerCert.PairName+".crt")
 		}
 	}
 

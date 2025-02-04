@@ -37,18 +37,17 @@ type EffectiveVersion interface {
 	String() string
 	Validate() []error
 	// AllowedEmulationVersionRange returns the string of the allowed range of emulation version.
+	// Used only for docs/help.
 	AllowedEmulationVersionRange() string
 	// AllowedMinCompatibilityVersionRange returns the string of the allowed range of min compatibility version.
+	// Used only for docs/help.
 	AllowedMinCompatibilityVersionRange() string
 }
 
 type MutableEffectiveVersion interface {
 	EffectiveVersion
-	Set(binaryVersion, emulationVersion, minCompatibilityVersion *version.Version)
 	SetEmulationVersion(emulationVersion *version.Version)
 	SetMinCompatibilityVersion(minCompatibilityVersion *version.Version)
-	WithEmulationVersionFloor(emulationVersionFloor *version.Version) MutableEffectiveVersion
-	WithMinCompatibilityVersionFloor(minCompatibilityVersionFloor *version.Version) MutableEffectiveVersion
 }
 
 type effectiveVersion struct {
@@ -108,12 +107,6 @@ func majorMinor(ver *version.Version) *version.Version {
 	return version.MajorMinor(ver.Major(), ver.Minor())
 }
 
-func (m *effectiveVersion) Set(binaryVersion, emulationVersion, minCompatibilityVersion *version.Version) {
-	m.binaryVersion.Store(binaryVersion)
-	m.emulationVersion.Store(majorMinor(emulationVersion))
-	m.minCompatibilityVersion.Store(majorMinor(minCompatibilityVersion))
-}
-
 func (m *effectiveVersion) SetEmulationVersion(emulationVersion *version.Version) {
 	m.emulationVersion.Store(majorMinor(emulationVersion))
 	// set the default minCompatibilityVersion to be emulationVersion - 1 if possible
@@ -127,19 +120,6 @@ func (m *effectiveVersion) SetEmulationVersion(emulationVersion *version.Version
 // SetMinCompatibilityVersion should be called after SetEmulationVersion
 func (m *effectiveVersion) SetMinCompatibilityVersion(minCompatibilityVersion *version.Version) {
 	m.minCompatibilityVersion.Store(majorMinor(minCompatibilityVersion))
-}
-
-func (m *effectiveVersion) WithEmulationVersionFloor(emulationVersionFloor *version.Version) MutableEffectiveVersion {
-	m.emulationVersionFloor = emulationVersionFloor
-	return m
-}
-
-func (m *effectiveVersion) WithMinCompatibilityVersionFloor(minCompatibilityVersionFloor *version.Version) MutableEffectiveVersion {
-	if minCompatibilityVersionFloor.GreaterThan(m.emulationVersionFloor) {
-		panic("minCompatibilityVersionFloor must be less than or equal to emulationVersionFloor")
-	}
-	m.minCompatibilityVersionFloor = minCompatibilityVersionFloor
-	return m
 }
 
 func (m *effectiveVersion) AllowedEmulationVersionRange() string {
@@ -197,24 +177,34 @@ func (m *effectiveVersion) Validate() []error {
 // If useDefaultBuildBinaryVersion is true, the call of BinaryVersion() will always return the current binary version.
 // NewEffectiveVersion(binaryVersion, true) should only be used if the binary version is dynamic.
 // Otherwise, use NewEffectiveVersion(binaryVersion, false) or NewEffectiveVersionFromString.
-func NewEffectiveVersion(binaryVersion *version.Version, useDefaultBuildBinaryVersion bool) MutableEffectiveVersion {
+func NewEffectiveVersion(binaryVersion *version.Version, useDefaultBuildBinaryVersion bool, emulationVersionFloor, minCompatibilityVersionFloor *version.Version) MutableEffectiveVersion {
 	effective := &effectiveVersion{
-		emulationVersionFloor:        version.MajorMinor(0, 0),
-		minCompatibilityVersionFloor: version.MajorMinor(0, 0),
+		emulationVersionFloor:        emulationVersionFloor,
+		minCompatibilityVersionFloor: minCompatibilityVersionFloor,
 	}
 	compatVersion := binaryVersion.SubtractMinor(1)
-	effective.Set(binaryVersion, binaryVersion, compatVersion)
+	effective.binaryVersion.Store(binaryVersion)
 	effective.useDefaultBuildBinaryVersion.Store(useDefaultBuildBinaryVersion)
+	effective.SetEmulationVersion(binaryVersion)
+	effective.SetMinCompatibilityVersion(compatVersion)
 	return effective
 }
 
 // NewEffectiveVersionFromString creates a MutableEffectiveVersion from the binaryVersion string.
-func NewEffectiveVersionFromString(binaryVer string) MutableEffectiveVersion {
+func NewEffectiveVersionFromString(binaryVer, emulationVerFloor, minCompatibilityVerFloor string) MutableEffectiveVersion {
 	if binaryVer == "" {
 		return &effectiveVersion{}
 	}
 	binaryVersion := version.MustParse(binaryVer)
-	return NewEffectiveVersion(binaryVersion, false)
+	emulationVersionFloor := version.MajorMinor(0, 0)
+	if emulationVerFloor != "" {
+		emulationVersionFloor = version.MustParse(emulationVerFloor)
+	}
+	minCompatibilityVersionFloor := version.MajorMinor(0, 0)
+	if minCompatibilityVerFloor != "" {
+		minCompatibilityVersionFloor = version.MustParse(minCompatibilityVerFloor)
+	}
+	return NewEffectiveVersion(binaryVersion, false, emulationVersionFloor, minCompatibilityVersionFloor)
 }
 
 func defaultBuildBinaryVersion() *version.Version {
