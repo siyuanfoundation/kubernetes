@@ -102,6 +102,9 @@ type ServerRunOptions struct {
 	// If true, APIs that have higher priority than the APIs of the same group resource enabled at the emulation version will be installed.
 	// This is useful if a controller has switched to use newer APIs in the binary version, and we want it still functional in an older emulation version.
 	EmulationForwardCompatible bool
+	// RuntimeConfigEmulationForwardCompatible indicates if it is ok to explicitly enable APIs introduced after the emulation version in the runtime-config.
+	// If true, it is allowed to explicitly enable specific api group versions/resources that are introduced after the emulation version through the --runtime-config flag.
+	RuntimeConfigEmulationForwardCompatible bool
 }
 
 func NewServerRunOptions() *ServerRunOptions {
@@ -157,6 +160,7 @@ func (s *ServerRunOptions) ApplyTo(c *server.Config) error {
 	c.EffectiveVersion = s.ComponentGlobalsRegistry.EffectiveVersionFor(s.ComponentName)
 	c.FeatureGate = s.ComponentGlobalsRegistry.FeatureGateFor(s.ComponentName)
 	c.EmulationForwardCompatible = s.EmulationForwardCompatible
+	c.RuntimeConfigEmulationForwardCompatible = s.RuntimeConfigEmulationForwardCompatible
 
 	return nil
 }
@@ -236,10 +240,10 @@ func (s *ServerRunOptions) Validate() []error {
 	if errs := s.ComponentGlobalsRegistry.Validate(); len(errs) != 0 {
 		errors = append(errors, errs...)
 	}
-	if s.EmulationForwardCompatible {
+	if s.EmulationForwardCompatible || s.RuntimeConfigEmulationForwardCompatible {
 		effectiveVersion := s.ComponentGlobalsRegistry.EffectiveVersionFor(s.ComponentName)
 		if effectiveVersion.BinaryVersion().WithPatch(0).EqualTo(effectiveVersion.EmulationVersion()) {
-			errors = append(errors, fmt.Errorf("ServerRunOptions.EmulationForwardCompatible cannot be set to true if the emulation version is the same as the binary version"))
+			errors = append(errors, fmt.Errorf("ServerRunOptions.EmulationForwardCompatible or RuntimeConfigEmulationForwardCompatible cannot be set to true if the emulation version is the same as the binary version"))
 		}
 	}
 	return errors
@@ -388,6 +392,9 @@ func (s *ServerRunOptions) AddUniversalFlags(fs *pflag.FlagSet) {
 
 	s.ComponentGlobalsRegistry.AddFlags(fs)
 	fs.BoolVar(&s.EmulationForwardCompatible, "emulation-forward-compatible", s.EmulationForwardCompatible, ""+
+		"If true APIs that have higher priority than the APIs enabled at the emulation version of the same group resource will be installed. "+
+		"Can only be set to true if the emulation version is lower than the binary version.")
+	fs.BoolVar(&s.RuntimeConfigEmulationForwardCompatible, "runtime-config-emulation-forward-compatible", s.RuntimeConfigEmulationForwardCompatible, ""+
 		"If true APIs that have higher priority than the APIs enabled at the emulation version of the same group resource will be installed. "+
 		"Can only be set to true if the emulation version is lower than the binary version.")
 }

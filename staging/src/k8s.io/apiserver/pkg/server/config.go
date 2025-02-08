@@ -158,6 +158,9 @@ type Config struct {
 	// If true, APIs that have higher priority than the APIs of the same group resource enabled at the emulation version will be installed.
 	// This is useful if a controller has switched to use newer APIs in the binary version, and we want it still functional in an older emulation version.
 	EmulationForwardCompatible bool
+	// RuntimeConfigEmulationForwardCompatible indicates if it is ok to explicitly enable APIs introduced after the emulation version in the runtime-config.
+	// If true, it is allowed to explicitly enable specific api group versions/resources that are introduced after the emulation version through the --runtime-config flag.
+	RuntimeConfigEmulationForwardCompatible bool
 	// FeatureGate is a way to plumb feature gate through if you have them.
 	FeatureGate featuregate.FeatureGate
 	// AuditBackend is where audit events are sent to.
@@ -843,9 +846,10 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		StorageReadinessHook:  NewStorageReadinessHook(c.StorageInitializationTimeout),
 		StorageVersionManager: c.StorageVersionManager,
 
-		EffectiveVersion:           c.EffectiveVersion,
-		EmulationForwardCompatible: c.EmulationForwardCompatible,
-		FeatureGate:                c.FeatureGate,
+		EffectiveVersion:                        c.EffectiveVersion,
+		EmulationForwardCompatible:              c.EmulationForwardCompatible,
+		RuntimeConfigEmulationForwardCompatible: c.RuntimeConfigEmulationForwardCompatible,
+		FeatureGate:                             c.FeatureGate,
 
 		muxAndDiscoveryCompleteSignals: map[string]<-chan struct{}{},
 	}

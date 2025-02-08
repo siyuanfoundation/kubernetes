@@ -249,6 +249,10 @@ type GenericAPIServer struct {
 	// If true, APIs that have higher priority than the APIs of the same group resource enabled at the emulation version will be installed.
 	// This is useful if a controller has switched to use newer APIs in the binary version, and we want it still functional in an older emulation version.
 	EmulationForwardCompatible bool
+	// RuntimeConfigEmulationForwardCompatible indicates if it is ok to explicitly enable APIs introduced after the emulation version in the runtime-config.
+	// If true, it is allowed to explicitly enable specific api group versions/resources that are introduced after the emulation version through the --runtime-config flag.
+	// When false,
+	RuntimeConfigEmulationForwardCompatible bool
 
 	// FeatureGate is a way to plumb feature gate through if you have them.
 	FeatureGate featuregate.FeatureGate
