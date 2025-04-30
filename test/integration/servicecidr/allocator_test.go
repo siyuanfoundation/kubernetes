@@ -41,112 +41,80 @@ import (
 func TestServiceAllocation(t *testing.T) {
 	// Create an IPv4 single stack control-plane
 	serviceCIDR := "192.168.0.0/29"
-	var testcases = []struct {
-		name                 string
-		ipAllocatorGate      bool
-		disableDualWriteGate bool
-	}{
-		{
-			name:                 "Bitmap allocator",
-			ipAllocatorGate:      false,
-			disableDualWriteGate: false,
+	etcdOptions := framework.SharedEtcd()
+	apiServerOptions := kubeapiservertesting.NewDefaultTestServerOptions()
+	s1 := kubeapiservertesting.StartTestServerOrDie(t,
+		apiServerOptions,
+		[]string{
+			"--service-cluster-ip-range=" + serviceCIDR,
+			"--advertise-address=10.0.0.2",
+			"--disable-admission-plugins=ServiceAccount",
 		},
-		{
-			name:                 "IP allocator and dual write",
-			ipAllocatorGate:      true,
-			disableDualWriteGate: false,
-		},
-		{
-			name:                 "IP allocator only",
-			ipAllocatorGate:      true,
-			disableDualWriteGate: true,
-		},
-		{
-			name:                 "disable dual write with bitmap allocator",
-			ipAllocatorGate:      false,
-			disableDualWriteGate: true,
-		},
+		etcdOptions)
+	defer s1.TearDownFn()
+
+	client, err := clientset.NewForConfig(s1.ClientConfig)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
 	}
-	for _, tc := range testcases {
-		t.Run(tc.name, func(t *testing.T) {
-			etcdOptions := framework.SharedEtcd()
-			apiServerOptions := kubeapiservertesting.NewDefaultTestServerOptions()
-			s1 := kubeapiservertesting.StartTestServerOrDie(t,
-				apiServerOptions,
-				[]string{
-					"--runtime-config=networking.k8s.io/v1beta1=true",
-					"--service-cluster-ip-range=" + serviceCIDR,
-					"--advertise-address=10.0.0.2",
-					"--disable-admission-plugins=ServiceAccount",
-					fmt.Sprintf("--feature-gates=%s=%v,%s=%v", features.MultiCIDRServiceAllocator, tc.ipAllocatorGate, features.DisableAllocatorDualWrite, tc.disableDualWriteGate),
+
+	svc := func(i int) *v1.Service {
+		return &v1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: fmt.Sprintf("svc-%v", i),
+			},
+			Spec: v1.ServiceSpec{
+				Type: v1.ServiceTypeClusterIP,
+				Ports: []v1.ServicePort{
+					{Port: 80},
 				},
-				etcdOptions)
-			defer s1.TearDownFn()
+			},
+		}
+	}
 
-			client, err := clientset.NewForConfig(s1.ClientConfig)
-			if err != nil {
-				t.Fatalf("Unexpected error: %v", err)
-			}
+	// Wait until the default "kubernetes" service is created.
+	if err := wait.PollUntilContextTimeout(context.Background(), 250*time.Millisecond, 15*time.Second, true, func(context.Context) (bool, error) {
+		_, err := client.CoreV1().Services(metav1.NamespaceDefault).Get(context.TODO(), "kubernetes", metav1.GetOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			return false, err
+		}
+		return !apierrors.IsNotFound(err), nil
+	}); err != nil {
+		t.Fatalf("creating kubernetes service timed out: %v", err)
+	}
 
-			svc := func(i int) *v1.Service {
-				return &v1.Service{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: fmt.Sprintf("svc-%v", i),
-					},
-					Spec: v1.ServiceSpec{
-						Type: v1.ServiceTypeClusterIP,
-						Ports: []v1.ServicePort{
-							{Port: 80},
-						},
-					},
-				}
-			}
+	// make 5 more services to take up all IPs
+	for i := 0; i < 5; i++ {
+		if _, err := client.CoreV1().Services(metav1.NamespaceDefault).Create(context.TODO(), svc(i), metav1.CreateOptions{}); err != nil {
+			t.Error(err)
+		}
+	}
 
-			// Wait until the default "kubernetes" service is created.
-			if err := wait.PollUntilContextTimeout(context.Background(), 250*time.Millisecond, 15*time.Second, true, func(context.Context) (bool, error) {
-				_, err := client.CoreV1().Services(metav1.NamespaceDefault).Get(context.TODO(), "kubernetes", metav1.GetOptions{})
-				if err != nil && !apierrors.IsNotFound(err) {
-					return false, err
-				}
-				return !apierrors.IsNotFound(err), nil
-			}); err != nil {
-				t.Fatalf("creating kubernetes service timed out: %v", err)
-			}
+	// Make another service. It will fail because we're out of cluster IPs
+	if _, err := client.CoreV1().Services(metav1.NamespaceDefault).Create(context.TODO(), svc(8), metav1.CreateOptions{}); err != nil {
+		if !strings.Contains(err.Error(), "range is full") {
+			t.Errorf("unexpected error text: %v", err)
+		}
+	} else {
+		svcs, err := client.CoreV1().Services(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			t.Fatalf("unexpected success, and error getting the services: %v", err)
+		}
+		allIPs := []string{}
+		for _, s := range svcs.Items {
+			allIPs = append(allIPs, s.Spec.ClusterIP)
+		}
+		t.Fatalf("unexpected creation success. The following IPs exist: %#v. It should only be possible to allocate 2 IP addresses in this cluster.\n\n%#v", allIPs, svcs)
+	}
 
-			// make 5 more services to take up all IPs
-			for i := 0; i < 5; i++ {
-				if _, err := client.CoreV1().Services(metav1.NamespaceDefault).Create(context.TODO(), svc(i), metav1.CreateOptions{}); err != nil {
-					t.Error(err)
-				}
-			}
+	// Delete the first service.
+	if err := client.CoreV1().Services(metav1.NamespaceDefault).Delete(context.TODO(), svc(1).ObjectMeta.Name, metav1.DeleteOptions{}); err != nil {
+		t.Fatalf("got unexpected error: %v", err)
+	}
 
-			// Make another service. It will fail because we're out of cluster IPs
-			if _, err := client.CoreV1().Services(metav1.NamespaceDefault).Create(context.TODO(), svc(8), metav1.CreateOptions{}); err != nil {
-				if !strings.Contains(err.Error(), "range is full") {
-					t.Errorf("unexpected error text: %v", err)
-				}
-			} else {
-				svcs, err := client.CoreV1().Services(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
-				if err != nil {
-					t.Fatalf("unexpected success, and error getting the services: %v", err)
-				}
-				allIPs := []string{}
-				for _, s := range svcs.Items {
-					allIPs = append(allIPs, s.Spec.ClusterIP)
-				}
-				t.Fatalf("unexpected creation success. The following IPs exist: %#v. It should only be possible to allocate 2 IP addresses in this cluster.\n\n%#v", allIPs, svcs)
-			}
-
-			// Delete the first service.
-			if err := client.CoreV1().Services(metav1.NamespaceDefault).Delete(context.TODO(), svc(1).ObjectMeta.Name, metav1.DeleteOptions{}); err != nil {
-				t.Fatalf("got unexpected error: %v", err)
-			}
-
-			// This time creating the second service should work.
-			if _, err := client.CoreV1().Services(metav1.NamespaceDefault).Create(context.TODO(), svc(8), metav1.CreateOptions{}); err != nil {
-				t.Fatalf("got unexpected error: %v", err)
-			}
-		})
+	// This time creating the second service should work.
+	if _, err := client.CoreV1().Services(metav1.NamespaceDefault).Create(context.TODO(), svc(8), metav1.CreateOptions{}); err != nil {
+		t.Fatalf("got unexpected error: %v", err)
 	}
 }
 
@@ -159,12 +127,9 @@ func TestServiceAllocIPAddressLargeCIDR(t *testing.T) {
 	s1 := kubeapiservertesting.StartTestServerOrDie(t,
 		apiServerOptions,
 		[]string{
-			"--runtime-config=networking.k8s.io/v1beta1=true",
 			"--service-cluster-ip-range=" + serviceCIDR,
 			"--advertise-address=2001:db8::10",
 			"--disable-admission-plugins=ServiceAccount",
-			// bitmap allocator does not support large service CIDRs set DisableAllocatorDualWrite to false
-			fmt.Sprintf("--feature-gates=%s=true,%s=true", features.MultiCIDRServiceAllocator, features.DisableAllocatorDualWrite),
 		},
 		etcdOptions)
 	defer s1.TearDownFn()
@@ -232,11 +197,9 @@ func TestMigrateService(t *testing.T) {
 	s := kubeapiservertesting.StartTestServerOrDie(t,
 		apiServerOptions,
 		[]string{
-			"--runtime-config=networking.k8s.io/v1beta1=true",
 			"--service-cluster-ip-range=10.0.0.0/24",
 			"--advertise-address=10.1.1.1",
 			"--disable-admission-plugins=ServiceAccount",
-			fmt.Sprintf("--feature-gates=%s=true,%s=false", features.MultiCIDRServiceAllocator, features.DisableAllocatorDualWrite),
 		},
 		etcdOptions)
 	defer s.TearDownFn()
@@ -320,10 +283,8 @@ func TestSkewedAllocatorsRollback(t *testing.T) {
 	// s1 uses IPAddress allocator
 	s1 := kubeapiservertesting.StartTestServerOrDie(t, apiServerOptions,
 		[]string{
-			"--runtime-config=networking.k8s.io/v1beta1=true",
 			"--service-cluster-ip-range=10.0.0.0/24",
-			"--disable-admission-plugins=ServiceAccount",
-			fmt.Sprintf("--feature-gates=%s=true,%s=true", features.MultiCIDRServiceAllocator, features.DisableAllocatorDualWrite)},
+			"--disable-admission-plugins=ServiceAccount"},
 		etcdOptions)
 	defer s1.TearDownFn()
 
@@ -348,10 +309,10 @@ func TestSkewedAllocatorsRollback(t *testing.T) {
 	// s2 uses bitmap allocator
 	s2 := kubeapiservertesting.StartTestServerOrDie(t, apiServerOptions,
 		[]string{
-			"--runtime-config=networking.k8s.io/v1beta1=false",
 			"--service-cluster-ip-range=10.0.0.0/24",
 			"--disable-admission-plugins=ServiceAccount",
-			fmt.Sprintf("--feature-gates=%s=false", features.MultiCIDRServiceAllocator)},
+			"--emulated-version=1.33",
+			fmt.Sprintf("--feature-gates=%s=false,%s=true", features.MultiCIDRServiceAllocator, features.DisableAllocatorDualWrite)},
 		etcdOptions)
 	defer s2.TearDownFn()
 
@@ -410,10 +371,10 @@ func TestSkewAllocatorsRollout(t *testing.T) {
 	// oldServer uses bitmap allocator
 	oldServer := kubeapiservertesting.StartTestServerOrDie(t, apiServerOptions,
 		[]string{
-			"--runtime-config=networking.k8s.io/v1beta1=false",
 			"--service-cluster-ip-range=10.0.0.0/16",
 			"--disable-admission-plugins=ServiceAccount",
-			fmt.Sprintf("--feature-gates=%s=false", features.MultiCIDRServiceAllocator)},
+			"--emulated-version=1.33",
+			fmt.Sprintf("--feature-gates=%s=false,%s=false", features.MultiCIDRServiceAllocator, features.DisableAllocatorDualWrite)},
 		etcdOptions)
 	defer oldServer.TearDownFn()
 
@@ -424,9 +385,9 @@ func TestSkewAllocatorsRollout(t *testing.T) {
 	// s1 uses IPAddress allocator
 	newServer := kubeapiservertesting.StartTestServerOrDie(t, apiServerOptions,
 		[]string{
-			"--runtime-config=networking.k8s.io/v1beta1=true",
 			"--service-cluster-ip-range=10.0.0.0/16",
 			"--disable-admission-plugins=ServiceAccount",
+			"--emulated-version=1.33",
 			fmt.Sprintf("--feature-gates=%s=true,%s=false", features.MultiCIDRServiceAllocator, features.DisableAllocatorDualWrite)},
 		etcdOptions)
 	defer newServer.TearDownFn()
@@ -558,10 +519,7 @@ func TestFlagsIPAllocator(t *testing.T) {
 	apiServerOptions := kubeapiservertesting.NewDefaultTestServerOptions()
 	// s1 uses IPAddress allocator
 	s1 := kubeapiservertesting.StartTestServerOrDie(t, apiServerOptions,
-		[]string{
-			"--runtime-config=networking.k8s.io/v1beta1=true",
-			"--service-cluster-ip-range=10.0.0.0/24",
-			fmt.Sprintf("--feature-gates=%s=true", features.MultiCIDRServiceAllocator)},
+		[]string{"--service-cluster-ip-range=10.0.0.0/24"},
 		etcdOptions)
 	defer s1.TearDownFn()
 
