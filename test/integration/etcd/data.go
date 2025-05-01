@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apiserver/pkg/util/compatibility"
 	utilversion "k8s.io/component-base/version"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
 
 	"k8s.io/kubernetes/test/utils/image"
 )
@@ -297,11 +298,13 @@ func GetEtcdStorageDataForNamespaceServedAt(namespace string, v string, removeAl
 		gvr("networking.k8s.io", "v1", "ipaddresses"): {
 			Stub:              `{"metadata": {"name": "192.168.2.3"}, "spec": {"parentRef": {"resource": "services","name": "test", "namespace": "ns"}}}`,
 			ExpectedEtcdPath:  "/registry/ipaddresses/192.168.2.3",
+			ExpectedGVK:       gvkP("networking.k8s.io", "v1", "IPAddress"),
 			IntroducedVersion: "1.33",
 		},
 		gvr("networking.k8s.io", "v1", "servicecidrs"): {
 			Stub:              `{"metadata": {"name": "range-b2"}, "spec": {"cidrs": ["192.168.0.0/16","fd00:1::/120"]}}`,
 			ExpectedEtcdPath:  "/registry/servicecidrs/range-b2",
+			ExpectedGVK:       gvkP("networking.k8s.io", "v1", "ServiceCIDR"),
 			IntroducedVersion: "1.33",
 		},
 		// --
@@ -717,6 +720,16 @@ func GetEtcdStorageDataForNamespaceServedAt(namespace string, v string, removeAl
 			}
 		}
 	}
+	// match the resource to the correct storage version for emulated version
+	if removeAlphas {
+		for key, data := range etcdStorageData {
+			storageVersion := storageVersionAtEmulationVersion(key, data.ExpectedGVK, v, etcdStorageData)
+			if storageVersion == "" {
+				continue
+			}
+			data.ExpectedGVK.Version = storageVersion
+		}
+	}
 	validateStorageData(etcdStorageData)
 	return etcdStorageData
 }
@@ -740,6 +753,33 @@ func validateStorageData(etcdStorageData map[schema.GroupVersionResource]Storage
 			panic(fmt.Sprintf("Error. Non-GA resource %s must have an introduced version", key.String()))
 		}
 	}
+}
+
+// storageVersionAtEmulationVersion tries to find the correct storage version at an emulation version.
+// If a GVK is introduced after the min compatibility version, we need to use an earlier version in storage.
+func storageVersionAtEmulationVersion(key schema.GroupVersionResource, expectedGVK *schema.GroupVersionKind, emuVer string, etcdStorageData map[schema.GroupVersionResource]StorageData) string {
+	// expectedGVK is needed to find the correct GVK with the correct storage version.
+	if expectedGVK == nil {
+		return ""
+	}
+	minCompatVer := version.MustParse(emuVer).SubtractMinor(1)
+	expectedGVR := gvr(expectedGVK.Group, expectedGVK.Version, key.Resource)
+	expectedGVRData, ok := etcdStorageData[expectedGVR]
+	// expectedGVK is introduced before the emulation version, no need to change.
+	if !ok || minCompatVer.AtLeast(version.MustParse(expectedGVRData.IntroducedVersion)) {
+		return ""
+	}
+	// go through the prioritized version list to find the first version introduced before the emulation version.
+	gvs := legacyscheme.Scheme.PrioritizedVersionsForGroup(key.Group)
+	for _, gv := range gvs {
+		expectedGVR := gv.WithResource(key.Resource)
+		if expectedGVRData, ok := etcdStorageData[expectedGVR]; ok {
+			if minCompatVer.AtLeast(version.MustParse(expectedGVRData.IntroducedVersion)) {
+				return gv.Version
+			}
+		}
+	}
+	return ""
 }
 
 // StorageData contains information required to create an object and verify its storage in etcd
