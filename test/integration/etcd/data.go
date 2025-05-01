@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apiserver/pkg/util/compatibility"
 	utilversion "k8s.io/component-base/version"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
 
 	"k8s.io/kubernetes/test/utils/image"
 )
@@ -297,11 +298,13 @@ func GetEtcdStorageDataForNamespaceServedAt(namespace string, v string, removeAl
 		gvr("networking.k8s.io", "v1", "ipaddresses"): {
 			Stub:              `{"metadata": {"name": "192.168.2.3"}, "spec": {"parentRef": {"resource": "services","name": "test", "namespace": "ns"}}}`,
 			ExpectedEtcdPath:  "/registry/ipaddresses/192.168.2.3",
+			ExpectedGVK:       gvkP("networking.k8s.io", "v1", "IPAddress"),
 			IntroducedVersion: "1.33",
 		},
 		gvr("networking.k8s.io", "v1", "servicecidrs"): {
 			Stub:              `{"metadata": {"name": "range-b2"}, "spec": {"cidrs": ["192.168.0.0/16","fd00:1::/120"]}}`,
 			ExpectedEtcdPath:  "/registry/servicecidrs/range-b2",
+			ExpectedGVK:       gvkP("networking.k8s.io", "v1", "ServiceCIDR"),
 			IntroducedVersion: "1.33",
 		},
 		// --
@@ -714,6 +717,30 @@ func GetEtcdStorageDataForNamespaceServedAt(namespace string, v string, removeAl
 		for key := range etcdStorageData {
 			if strings.Contains(key.Version, "alpha") {
 				delete(etcdStorageData, key)
+			}
+		}
+	}
+	// match to the correct storage version
+	for key, data := range etcdStorageData {
+		if data.ExpectedGVK == nil {
+			continue
+		}
+		minCompatVer := version.MustParse(v).SubtractMinor(1)
+		expectedGVR := gvr(data.ExpectedGVK.Group, data.ExpectedGVK.Version, key.Resource)
+		expectedGVRData, ok := etcdStorageData[expectedGVR]
+		if !ok || minCompatVer.AtLeast(version.MustParse(expectedGVRData.IntroducedVersion)) {
+			continue
+		}
+		fmt.Printf("sizhangDebug: key=%s, ExpectedGVK=%s, introduced at %s later than emulation version %s\n", key.String(), data.ExpectedGVK.String(), expectedGVRData.IntroducedVersion, v)
+		gvs := legacyscheme.Scheme.PrioritizedVersionsForGroup(key.Group)
+		fmt.Printf("sizhangDebug: PrioritizedVersionsForGroup %s = %v\n", key.String(), gvs)
+		for _, gv := range gvs {
+			expectedGVR := gv.WithResource(key.Resource)
+			if expectedGVRData, ok := etcdStorageData[expectedGVR]; ok {
+				if minCompatVer.AtLeast(version.MustParse(expectedGVRData.IntroducedVersion)) {
+					fmt.Printf("sizhangDebug: replacing %s with version %s\n", data.ExpectedGVK.String(), gv.String())
+					data.ExpectedGVK.Version = gv.Version
+				}
 			}
 		}
 	}
