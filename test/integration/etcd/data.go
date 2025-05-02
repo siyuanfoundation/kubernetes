@@ -720,28 +720,14 @@ func GetEtcdStorageDataForNamespaceServedAt(namespace string, v string, removeAl
 			}
 		}
 	}
-	// match to the correct storage version
-	for key, data := range etcdStorageData {
-		if data.ExpectedGVK == nil {
-			continue
-		}
-		minCompatVer := version.MustParse(v).SubtractMinor(1)
-		expectedGVR := gvr(data.ExpectedGVK.Group, data.ExpectedGVK.Version, key.Resource)
-		expectedGVRData, ok := etcdStorageData[expectedGVR]
-		if !ok || minCompatVer.AtLeast(version.MustParse(expectedGVRData.IntroducedVersion)) {
-			continue
-		}
-		fmt.Printf("sizhangDebug: key=%s, ExpectedGVK=%s, introduced at %s later than emulation version %s\n", key.String(), data.ExpectedGVK.String(), expectedGVRData.IntroducedVersion, v)
-		gvs := legacyscheme.Scheme.PrioritizedVersionsForGroup(key.Group)
-		fmt.Printf("sizhangDebug: PrioritizedVersionsForGroup %s = %v\n", key.String(), gvs)
-		for _, gv := range gvs {
-			expectedGVR := gv.WithResource(key.Resource)
-			if expectedGVRData, ok := etcdStorageData[expectedGVR]; ok {
-				if minCompatVer.AtLeast(version.MustParse(expectedGVRData.IntroducedVersion)) {
-					fmt.Printf("sizhangDebug: replacing %s with version %s\n", data.ExpectedGVK.String(), gv.String())
-					data.ExpectedGVK.Version = gv.Version
-				}
+	// match the resource to the correct storage version for emulated version
+	if removeAlphas {
+		for key, data := range etcdStorageData {
+			storageVersion := storageVersionAtEmulationVersion(key, data.ExpectedGVK, v, etcdStorageData)
+			if storageVersion == "" {
+				continue
 			}
+			data.ExpectedGVK.Version = storageVersion
 		}
 	}
 	validateStorageData(etcdStorageData)
@@ -767,6 +753,31 @@ func validateStorageData(etcdStorageData map[schema.GroupVersionResource]Storage
 			panic(fmt.Sprintf("Error. Non-GA resource %s must have an introduced version", key.String()))
 		}
 	}
+}
+
+func storageVersionAtEmulationVersion(key schema.GroupVersionResource, expectedGVK *schema.GroupVersionKind, emuVer string, etcdStorageData map[schema.GroupVersionResource]StorageData) string {
+	if expectedGVK == nil {
+		return ""
+	}
+	minCompatVer := version.MustParse(emuVer).SubtractMinor(1)
+	expectedGVR := gvr(expectedGVK.Group, expectedGVK.Version, key.Resource)
+	expectedGVRData, ok := etcdStorageData[expectedGVR]
+	if !ok || minCompatVer.AtLeast(version.MustParse(expectedGVRData.IntroducedVersion)) {
+		return ""
+	}
+	fmt.Printf("sizhangDebug: key=%s, ExpectedGVK=%s, introduced at %s later than emulation version %s\n", key.String(), data.ExpectedGVK.String(), expectedGVRData.IntroducedVersion, v)
+	gvs := legacyscheme.Scheme.PrioritizedVersionsForGroup(key.Group)
+	fmt.Printf("sizhangDebug: PrioritizedVersionsForGroup %s = %v\n", key.String(), gvs)
+	for _, gv := range gvs {
+		expectedGVR := gv.WithResource(key.Resource)
+		if expectedGVRData, ok := etcdStorageData[expectedGVR]; ok {
+			if minCompatVer.AtLeast(version.MustParse(expectedGVRData.IntroducedVersion)) {
+				fmt.Printf("sizhangDebug: replacing %s with version %s\n", expectedGVK.String(), gv.String())
+				return gv.Version
+			}
+		}
+	}
+	return ""
 }
 
 // StorageData contains information required to create an object and verify its storage in etcd
