@@ -176,6 +176,7 @@ func NewRequest(c *RESTClient) *Request {
 	}
 
 	r.setAcceptHeader()
+	// set version header
 	return r
 }
 

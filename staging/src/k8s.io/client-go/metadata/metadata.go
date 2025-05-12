@@ -152,6 +152,7 @@ func (c *client) Delete(ctx context.Context, name string, opts metav1.DeleteOpti
 		return err
 	}
 
+	// Add version header
 	result := c.client.client.
 		Delete().
 		AbsPath(append(c.makeURLSegments(name), subresources...)...).
@@ -169,6 +170,7 @@ func (c *client) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions
 		return err
 	}
 
+	// Add version header
 	result := c.client.client.
 		Delete().
 		AbsPath(c.makeURLSegments("")...).
@@ -308,6 +310,7 @@ func (c *client) Patch(ctx context.Context, name string, pt types.PatchType, dat
 	if len(name) == 0 {
 		return nil, fmt.Errorf("name is required")
 	}
+	// Add version header
 	result := c.client.client.
 		Patch(pt).
 		AbsPath(append(c.makeURLSegments(name), subresources...)...).

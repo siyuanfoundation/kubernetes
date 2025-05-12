@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	clientfeatures "k8s.io/client-go/features"
 	"k8s.io/client-go/util/flowcontrol"
+	basecompatibility "k8s.io/component-base/compatibility"
 )
 
 const (
@@ -74,6 +75,9 @@ type ClientContentConfig struct {
 	// Negotiator is used for obtaining encoders and decoders for multiple
 	// supported media types.
 	Negotiator runtime.ClientNegotiator
+
+	EffectiveVersionComponentName string
+	EffectiveVersion              basecompatibility.EffectiveVersion
 }
 
 // RESTClient imposes common Kubernetes API conventions on a set of resource paths.

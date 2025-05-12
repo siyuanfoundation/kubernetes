@@ -40,6 +40,7 @@ import (
 	"k8s.io/client-go/transport"
 	certutil "k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/flowcontrol"
+	basecompatibility "k8s.io/component-base/compatibility"
 	"k8s.io/klog/v2"
 )
 
@@ -317,6 +318,9 @@ type ContentConfig struct {
 	// TODO: NegotiatedSerializer will be phased out as internal clients are removed
 	//   from Kubernetes.
 	NegotiatedSerializer runtime.NegotiatedSerializer
+
+	EffectiveVersionComponentName string
+	EffectiveVersion              basecompatibility.EffectiveVersion
 }
 
 // RESTClientFor returns a RESTClient that satisfies the requested attributes on a client Config
@@ -391,6 +395,7 @@ func RESTClientForConfigAndClient(config *Config, httpClient *http.Client) (*RES
 		ContentType:        config.ContentType,
 		GroupVersion:       gv,
 		Negotiator:         runtime.NewClientNegotiator(config.NegotiatedSerializer, gv),
+		EffectiveVersion:   config.EffectiveVersion,
 	}
 
 	restClient, err := NewRESTClient(baseURL, versionedAPIPath, clientContent, rateLimiter, httpClient)
@@ -473,6 +478,7 @@ func UnversionedRESTClientForConfigAndClient(config *Config, httpClient *http.Cl
 		ContentType:        config.ContentType,
 		GroupVersion:       gv,
 		Negotiator:         runtime.NewClientNegotiator(config.NegotiatedSerializer, gv),
+		EffectiveVersion:   config.EffectiveVersion,
 	}
 
 	restClient, err := NewRESTClient(baseURL, versionedAPIPath, clientContent, rateLimiter, httpClient)
