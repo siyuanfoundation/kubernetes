@@ -59,7 +59,7 @@ func TestEffectiveVersionRegistry(t *testing.T) {
 func testRegistry(t *testing.T) *componentGlobalsRegistry {
 	r := NewComponentGlobalsRegistry()
 	verKube := NewEffectiveVersionFromString("1.31.1-beta.0.353", "1.31", "1.30")
-	fgKube := featuregate.NewVersionedFeatureGate(version.MustParse("0.0"), version.MustParse("0.0"))
+	fgKube := featuregate.NewVersionedFeatureGate(version.MustParse("0.0"))
 	err := fgKube.AddVersioned(map[featuregate.Feature]featuregate.VersionedSpecs{
 		"kubeA": {
 			{Version: version.MustParse("1.27"), Default: false, PreRelease: featuregate.Alpha},
@@ -79,7 +79,7 @@ func testRegistry(t *testing.T) *componentGlobalsRegistry {
 	}
 
 	verTest := NewEffectiveVersionFromString("2.8", "2.8", "2.7")
-	fgTest := featuregate.NewVersionedFeatureGate(version.MustParse("0.0"), version.MustParse("0.0"))
+	fgTest := featuregate.NewVersionedFeatureGate(version.MustParse("0.0"))
 	err = fgTest.AddVersioned(map[featuregate.Feature]featuregate.VersionedSpecs{
 		"testA": {
 			{Version: version.MustParse("2.7"), Default: false, PreRelease: featuregate.Alpha},

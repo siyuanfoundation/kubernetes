@@ -94,15 +94,15 @@ type componentGlobalsRegistry struct {
 	mutex            sync.RWMutex
 	// emulationVersionConfig stores the list of component name to emulation version set from the flag.
 	// When the `--emulated-version` flag is parsed, it would not take effect until Set() is called,
-	// because the emulation version needs to be set before the feature gate is set.
+	// because we have to enforce of order of setting the emulation version first, then min compatibility version, and last the feature gate.
 	emulationVersionConfig []string
 	// minCompatibilityVersionConfig stores the list of component name to min compatibility version set from the flag.
 	// When the `--min-compatibility-version` flag is parsed, it would not take effect until Set() is called,
-	// because the min compatibility version needs to be set before the feature gate is set.
+	// because we have to enforce of order of setting the emulation version first, then min compatibility version, and last the feature gate.
 	minCompatibilityVersionConfig []string
 	// featureGatesConfig stores the map of component name to the list of feature gates set from the flag.
 	// When the `--feature-gates` flag is parsed, it would not take effect until Set() is called,
-	// because the emulation version needs to be set before the feature gate is set.
+	// because we have to enforce of order of setting the emulation version first, then min compatibility version, and last the feature gate.
 	featureGatesConfig map[string][]string
 	// featureGatesConfigFlags stores a pointer to the flag value, allowing other commands
 	// to append to the feature gates configuration rather than overwriting it
@@ -251,9 +251,9 @@ func (r *componentGlobalsRegistry) AddFlags(fs *pflag.FlagSet) {
 	fs.StringSliceVar(&r.minCompatibilityVersionConfig, "min-compatibility-version", r.minCompatibilityVersionConfig, ""+
 		"This flag sets the min version of control plane components the server should be compatible with.\n"+
 		"Typically it is the minimal binary version of all control plane components the server expects to coexist with throughout the lifecycle of this server.\n"+
-		"If set to smaller than the binary/emulated version, the newest CEL features/libraries/parameters introduced after the min compatibility version would not be turned on, "+
-		"some non-backward compatible feature gates would not be turned on, and the resource storage version will be set based on the min compatibility version.\n"+
-		"If set to equal to the binary/emulated version, rollback would not be supported, while the newest CEL features/libraries/parameters would turned on and the newest non-backward compatible feature gates would be available.\n"+
+		"If set to smaller than the server emulated version, the newest CEL features/libraries/parameters introduced after the min compatibility version would not be turned on, "+
+		"some non-backward compatible feature gates would be disabled by default, and the resource storage version will be set based on the min compatibility version.\n"+
+		"If set to equal to the binary version, rollback would not be supported, while the newest CEL features/libraries/parameters would turned on and the newest non-backward compatible feature gates would be enabled by default.\n"+
 		"Must be less or equal to the emulated-version. Version format could only be major.minor, for example: '--min-compatibility-version=wardle=1.2,kube=1.31'.\n"+
 		"Options are: "+strings.Join(r.unsafeVersionFlagOptions(false), ",")+
 		"\nIf the component is not specified, defaults to \"kube\"")
@@ -379,7 +379,7 @@ func (r *componentGlobalsRegistry) Set() error {
 		}
 		// only components without any dependencies can be set from the flag.
 		if r.componentGlobals[comp].dependentComponentVersion {
-			return fmt.Errorf("EmulationVersion of %s is set by mapping, cannot set it by flag", comp)
+			return fmt.Errorf("MinCompatibilityVersion of %s is set by mapping, cannot set it by flag", comp)
 		}
 	}
 	if minCompatibilityVersions, err := r.getFullVersionConfig(minCompatibilityVersionConfigMap); err != nil {

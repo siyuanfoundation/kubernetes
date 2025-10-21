@@ -725,7 +725,7 @@ func prepareAggregatedWardleAPIServer(ctx context.Context, t *testing.T, namespa
 	)
 	_, _ = componentGlobalsRegistry.ComponentGlobalsOrRegister(
 		apiserver.WardleComponentName, basecompatibility.NewEffectiveVersionFromString(wardleBinaryVersion, "", ""),
-		featuregate.NewVersionedFeatureGate(version.MustParse(wardleBinaryVersion), version.MustParse(wardleBinaryVersion).SubtractMinor(1)))
+		featuregate.NewVersionedFeatureGate(version.MustParse(wardleBinaryVersion)))
 
 	kubeClient := client.NewForConfigOrDie(getKubeConfig(testServer))
 
