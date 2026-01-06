@@ -52,12 +52,16 @@ var namespaceGVR = schema.GroupVersionResource{Group: "", Version: "v1", Resourc
 
 func createHandler(r rest.NamedCreater, scope *RequestScope, admit admission.Interface, includeName bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		// Generic request processing: first, perform common steps applicable to all resources.
+		// This includes extracting namespace and name, setting up timeouts, and
+		// negotiating content types (YAML, JSON, Protobuf, etc.).
 		ctx := req.Context()
 		// For performance tracking purposes.
 		ctx, span := tracing.Start(ctx, "Create", traceFields(req)...)
 		req = req.WithContext(ctx)
 		defer span.End(500 * time.Millisecond)
 
+		// Namespace and name extraction is handled generically for all built-in types.
 		namespace, name, err := scope.Namer.Name(req)
 		if err != nil {
 			if includeName {
@@ -78,6 +82,8 @@ func createHandler(r rest.NamedCreater, scope *RequestScope, admit admission.Int
 		// timeout inside the parent context is lower than requestTimeoutUpperBound.
 		ctx, cancel := context.WithTimeout(ctx, requestTimeoutUpperBound)
 		defer cancel()
+
+		// Negotiate output media type: ensure the requested format is supported.
 		outputMediaType, _, err := negotiation.NegotiateOutputMediaType(req, scope.Serializer, scope)
 		if err != nil {
 			scope.err(err, w, req)
@@ -113,6 +119,10 @@ func createHandler(r rest.NamedCreater, scope *RequestScope, admit admission.Int
 		}
 		options.TypeMeta.SetGroupVersionKind(metav1.SchemeGroupVersion.WithKind("CreateOptions"))
 
+		// Performance/Genericity: The central handler performs generic steps using specific implementations
+		// provided by the storage (e.g., for decoding, converting, or defaulting). Built-in types
+		// and Custom Resources follow the same flow but use different implementations (e.g.,
+		// decoding into internal Go types vs. unstructured objects).
 		defaultGVK := scope.Kind
 		original := r.New()
 
@@ -122,6 +132,9 @@ func createHandler(r rest.NamedCreater, scope *RequestScope, admit admission.Int
 			decodeSerializer = s.StrictSerializer
 		}
 
+		// This is where the object is decoded from the request body to the internal hub version for built-in types for in-memory handling
+		// For CRDs, the object is decoded to the CRD's version.
+		// This "hub version" decoding is the unification point for built-in and versioned types.
 		decoder := scope.Serializer.DecoderToVersion(decodeSerializer, scope.HubGroupVersion)
 		span.AddEvent("About to convert to expected version")
 		obj, gvk, err := decoder.Decode(body, &defaultGVK, original)
@@ -164,6 +177,10 @@ func createHandler(r rest.NamedCreater, scope *RequestScope, admit admission.Int
 
 		if objectMeta, err := meta.Accessor(obj); err == nil {
 			preserveObjectMetaSystemFields := false
+			// Interface "Carveouts": Some storage implementations use niche interfaces like
+			// SubresourceObjectMetaPreserver to handle specific backward-compatibility or bug-fix cases.
+			// This allows the generic handler to accommodate unusual behavior without special-casing
+			// individual resource types.
 			if c, ok := r.(rest.SubresourceObjectMetaPreserver); ok && len(scope.Subresource) > 0 {
 				preserveObjectMetaSystemFields = c.PreserveRequestObjectMetaSystemFieldsOnSubresourceCreate()
 			}
@@ -181,6 +198,8 @@ func createHandler(r rest.NamedCreater, scope *RequestScope, admit admission.Int
 		span.AddEvent("About to store object in database")
 		admissionAttributes := admission.NewAttributesRecord(obj, nil, scope.Kind, namespace, name, scope.Resource, scope.Subresource, admission.Create, options, dryrun.IsDryRun(options.DryRun), userInfo)
 		requestFunc := func() (runtime.Object, error) {
+			// Finally, dispatch the call to the actual storage implementation.
+			// By this point, generic validation, decoding, and admission have already occurred.
 			return r.Create(
 				ctx,
 				name,

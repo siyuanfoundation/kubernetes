@@ -192,6 +192,11 @@ var toDiscoveryKubeVerb = map[string]string{
 }
 
 // Install handlers for API resources.
+//
+// Install registers the handlers for the built-in types. It iterates over all
+// the groups, versions, and REST storage instances, and based on the interfaces
+// the storage implements, it wires up the corresponding HTTP methods.
+// The interfaces are defined in "staging/src/k8s.io/apiserver/pkg/registry/rest/rest.go".
 func (a *APIInstaller) Install() ([]metav1.APIResource, []*storageversion.ResourceInfo, *restful.WebService, []error) {
 	var apiResources []metav1.APIResource
 	var resourceInfos []*storageversion.ResourceInfo
@@ -284,6 +289,13 @@ func GetResourceKind(groupVersion schema.GroupVersion, storage rest.Storage, typ
 	return fqKindToRegister, nil
 }
 
+// registerResourceHandlers registers the handlers for the given resource path based on the interfaces the storage implements.
+// The installation is interface-driven. It checks which interfaces the storage
+// implements (e.g. Creator, Lister, Getter, Deleter, Updater, Patcher, Watcher).
+// Based on the implemented interfaces, it wires up the corresponding HTTP methods.
+// For example, if the storage implements the Creator interface, it wires up the
+// POST method for the resource path.
+// The go-restful web service framework is used to handle both the muxing and the OpenAPI spec generation.
 func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storage, ws *restful.WebService) (*metav1.APIResource, *storageversion.ResourceInfo, error) {
 	admit := a.group.Admit
 

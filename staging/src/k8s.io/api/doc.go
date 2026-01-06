@@ -14,4 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package api contains the specific Go types for the Kubernetes API,
+// for example, the pod API.
+//
+// These APIs are versioned. Clients are always working with the versioned
+// APIs. Everything that gets serialized (to go across the wire or to go
+// into etcd) is versioned.
 package api

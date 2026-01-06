@@ -15,4 +15,6 @@ limitations under the License.
 */
 
 // Package handlers contains HTTP handlers to implement the apiserver APIs.
+//
+// Functions in the package convert the interfaces of the storage objects in staging/src/k8s.io/apiserver/pkg/registry/rest/rest.go into HTTP handlers.
 package handlers
