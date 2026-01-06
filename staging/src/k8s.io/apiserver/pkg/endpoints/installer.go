@@ -192,6 +192,17 @@ var toDiscoveryKubeVerb = map[string]string{
 }
 
 // Install handlers for API resources.
+//
+// Install registers the handlers for the built-in types. It iterates over all
+// the groups, versions, and REST storage instances to wire them up.
+//
+// The installation is interface-driven. It checks which interfaces the storage
+// implements (e.g. Creator, Lister, Getter, Deleter, Updater, Patcher, Watcher)
+// and checks if the storage supports standard methods.
+//
+// Based on the implemented interfaces, it wires up the corresponding HTTP methods.
+// For example, if the storage implements the Creator interface, it wires up the
+// POST method for the resource path.
 func (a *APIInstaller) Install() ([]metav1.APIResource, []*storageversion.ResourceInfo, *restful.WebService, []error) {
 	var apiResources []metav1.APIResource
 	var resourceInfos []*storageversion.ResourceInfo
