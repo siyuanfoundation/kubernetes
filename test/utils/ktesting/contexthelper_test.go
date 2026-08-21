@@ -19,12 +19,76 @@ package ktesting
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/onsi/gomega"
 )
+
+// cleanupDrivenContextTB embeds *testing.T for all the boilerplate TB
+// methods, but reimplements Cleanup and Context to mimic Ginkgo's testing
+// proxy: Context() creates a context and registers its own cancel func via
+// Cleanup instead of canceling it independently when the test is done.
+// Cleanup callbacks run in LIFO order, exactly like both "testing" and
+// Ginkgo do it.
+type cleanupDrivenContextTB struct {
+	*testing.T
+
+	mu       sync.Mutex
+	cleanups []func()
+}
+
+func (tb *cleanupDrivenContextTB) Cleanup(f func()) {
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
+	tb.cleanups = append(tb.cleanups, f)
+}
+
+// runCleanups simulates the end of the test: all callbacks registered via
+// Cleanup run now, in LIFO order.
+func (tb *cleanupDrivenContextTB) runCleanups() {
+	for {
+		tb.mu.Lock()
+		if len(tb.cleanups) == 0 {
+			tb.mu.Unlock()
+			return
+		}
+		f := tb.cleanups[len(tb.cleanups)-1]
+		tb.cleanups = tb.cleanups[:len(tb.cleanups)-1]
+		tb.mu.Unlock()
+		f()
+	}
+}
+
+func (tb *cleanupDrivenContextTB) Context() context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	tb.Cleanup(cancel)
+	return ctx
+}
+
+// TestRunWhenDoneCleanupDrivenContext ensures that there's no deadlock
+// with TB implementations (like Ginkgo's) which cancel their Context() from
+// their own Cleanup instead of independently, which runs after (LIFO order)
+// runWhenDone's own Cleanup and thus could have blocked it forever.
+func TestRunWhenDoneCleanupDrivenContext(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		fake := &cleanupDrivenContextTB{T: t}
+
+		var called bool
+		runWhenDone(fake, func() {
+			called = true
+		})
+
+		// If this deadlocks, synctest reports it as a test failure.
+		fake.runCleanups()
+
+		if !called {
+			t.Error("runWhenDone's callback was not invoked")
+		}
+	})
+}
 
 func TestCleanupErr(t *testing.T) {
 	actual := cleanupErr(t.Name())
