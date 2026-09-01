@@ -27,8 +27,6 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
-	schedulingv1alpha3 "k8s.io/api/scheduling/v1alpha3"
-	schedulingv1beta1 "k8s.io/api/scheduling/v1beta1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -1021,7 +1019,7 @@ func (pgqi *QueuedPodGroupInfo) AddSubtree(subtree *PodGroupInfo) {
 }
 
 // UpdateGenericPodGroup updates a generic pod group in the queued pod group info hierarchy.
-func (pgqi *QueuedPodGroupInfo) UpdateGenericPodGroup(gpg *GenericPodGroup) {
+func (pgqi *QueuedPodGroupInfo) UpdateGenericPodGroup(gpg *fwk.GenericPodGroup) {
 	node, _ := findNodeAndParent(pgqi.PodGroupInfo, nil, gpg.GetName())
 	if node != nil {
 		node.GenericPodGroup = gpg
@@ -1030,7 +1028,7 @@ func (pgqi *QueuedPodGroupInfo) UpdateGenericPodGroup(gpg *GenericPodGroup) {
 
 // RemoveGenericPodGroup removes a generic pod group from the queued pod group info hierarchy.
 // It returns a slice of all pods within the hierarchy of the removed pod group / composite pod group.
-func (pgqi *QueuedPodGroupInfo) RemoveGenericPodGroup(gpg *GenericPodGroup) []*QueuedPodInfo {
+func (pgqi *QueuedPodGroupInfo) RemoveGenericPodGroup(gpg *fwk.GenericPodGroup) []*QueuedPodInfo {
 	node, parent := findNodeAndParent(pgqi.PodGroupInfo, nil, gpg.GetName())
 	if node == nil {
 		return nil
@@ -1081,107 +1079,12 @@ func (pgqi *QueuedPodGroupInfo) deleteSubtreePods(curr *PodGroupInfo) []*QueuedP
 	return removedPods
 }
 
-// GenericPodGroup is a wrapper around either a PodGroup or a CompositePodGroup API object,
-// providing a unified interface for scheduler's internal operations on PodGroup objects.
-type GenericPodGroup struct {
-	// PodGroup is a PodGroup API object.
-	PodGroup *schedulingv1beta1.PodGroup
-	// CompositePodGroup is a CompositePodGroup API object.
-	// It can be set only when CompositePodGroup feature is enabled.
-	CompositePodGroup *schedulingv1alpha3.CompositePodGroup
-}
-
-// NewGenericPodGroup returns a GenericPodGroup for a PodGroup.
-func NewGenericPodGroup(pg *schedulingv1beta1.PodGroup) *GenericPodGroup {
-	return &GenericPodGroup{PodGroup: pg}
-}
-
-// NewGenericCompositePodGroup returns a GenericPodGroup for a CompositePodGroup.
-func NewGenericCompositePodGroup(cpg *schedulingv1alpha3.CompositePodGroup) *GenericPodGroup {
-	return &GenericPodGroup{CompositePodGroup: cpg}
-}
-
-func (gpg *GenericPodGroup) GetPodGroup() *schedulingv1beta1.PodGroup {
-	return gpg.PodGroup
-}
-
-func (gpg *GenericPodGroup) GetCompositePodGroup() *schedulingv1alpha3.CompositePodGroup {
-	return gpg.CompositePodGroup
-}
-
-func (gpg *GenericPodGroup) GetName() string {
-	if gpg.PodGroup != nil {
-		return gpg.PodGroup.Name
-	}
-	return gpg.CompositePodGroup.Name
-}
-
-func (gpg *GenericPodGroup) GetNamespace() string {
-	if gpg.PodGroup != nil {
-		return gpg.PodGroup.Namespace
-	}
-	return gpg.CompositePodGroup.Namespace
-}
-
-func (gpg *GenericPodGroup) GetType() fwk.EntityKeyType {
-	if gpg.PodGroup != nil {
-		return fwk.PodGroupKeyType
-	}
-	return fwk.CompositePodGroupKeyType
-}
-
-func (gpg *GenericPodGroup) GetKey() fwk.EntityKey {
-	if gpg.PodGroup != nil {
-		return fwk.PodGroupKey(gpg.PodGroup.Namespace, gpg.PodGroup.Name)
-	}
-	return fwk.CompositePodGroupKey(gpg.CompositePodGroup.Namespace, gpg.CompositePodGroup.Name)
-}
-
-// GetParentCompositePodGroupName returns the parent composite pod group name of the GenericPodGroup.
-// This should be used only when the feature feature gate CompositePodGroup is enabled.
-func (gpg *GenericPodGroup) GetParentCompositePodGroupName() *string {
-	if gpg.PodGroup != nil {
-		return gpg.PodGroup.Spec.ParentCompositePodGroupName
-	}
-	return gpg.CompositePodGroup.Spec.ParentCompositePodGroupName
-}
-
-// HasParent returns true if the GenericPodGroup has a parent.
-// This should be used only when the feature feature gate CompositePodGroup is enabled.
-func (gpg *GenericPodGroup) HasParent() bool {
-	return gpg.GetParentCompositePodGroupName() != nil
-}
-
-// GetParentKey returns the parent key of the GenericPodGroup.
-// This should be used only when the feature CompositePodGroup feature gate is enabled.
-func (gpg *GenericPodGroup) GetParentKey() (fwk.EntityKey, bool) {
-	parentName := gpg.GetParentCompositePodGroupName()
-	if parentName == nil {
-		return fwk.EntityKey{}, false
-	}
-	return fwk.CompositePodGroupKey(gpg.GetNamespace(), *parentName), true
-}
-
-func (gpg *GenericPodGroup) GetPriority() int32 {
-	if gpg.PodGroup != nil {
-		return schedutil.PodGroupPriority(gpg.PodGroup)
-	}
-	return schedutil.CompositePodGroupPriority(gpg.CompositePodGroup)
-}
-
-func (gpg *GenericPodGroup) GetCreationTimestamp() time.Time {
-	if gpg.PodGroup != nil {
-		return gpg.PodGroup.CreationTimestamp.Time
-	}
-	return gpg.CompositePodGroup.CreationTimestamp.Time
-}
-
 // PodGroupInfo enriches GenericPodGroup with information about pod group hierarchy.
 // For PodGroups, it contains a list of unscheduled pods.
 // For CompositePodGroups, it contains a list of children.
 // This type is typically used as an input to pod group scheduling cycle plugins.
 type PodGroupInfo struct {
-	*GenericPodGroup
+	*fwk.GenericPodGroup
 	// UnscheduledPods are pods that are currently being considered for scheduling.
 	// It can be useful to also retrieve the scheduled (assumed or assigned) pods.
 	// PodGroupManager.PodGroupState can be used for that.

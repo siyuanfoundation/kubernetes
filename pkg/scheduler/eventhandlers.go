@@ -476,9 +476,9 @@ func (sched *Scheduler) addPodGroup(obj any) {
 	}
 
 	logger.V(3).Info("Add event for pod group", "podGroup", klog.KObj(pg))
-	apg := framework.NewGenericPodGroup(pg)
-	sched.Cache.AddGenericPodGroup(apg)
-	sched.SchedulingQueue.AddGenericPodGroup(logger, apg)
+	gpg := fwk.NewGenericPodGroup(pg)
+	sched.Cache.AddGenericPodGroup(gpg)
+	sched.SchedulingQueue.AddGenericPodGroup(logger, gpg)
 	sched.SchedulingQueue.MoveAllToActiveOrBackoffQueue(logger, evt, nil, pg, nil)
 }
 
@@ -502,9 +502,9 @@ func (sched *Scheduler) updatePodGroup(oldObj, newObj any) {
 	}
 
 	logger.V(4).Info("Update event for pod group", "podGroup", klog.KObj(newPG))
-	apg := framework.NewGenericPodGroup(newPG)
-	sched.Cache.UpdateGenericPodGroup(logger, apg)
-	sched.SchedulingQueue.UpdateGenericPodGroup(logger, apg)
+	gpg := fwk.NewGenericPodGroup(newPG)
+	sched.Cache.UpdateGenericPodGroup(logger, gpg)
+	sched.SchedulingQueue.UpdateGenericPodGroup(logger, gpg)
 	sched.SchedulingQueue.MoveAllToActiveOrBackoffQueue(logger, evt, oldPG, newPG, nil)
 }
 
@@ -530,9 +530,9 @@ func (sched *Scheduler) deletePodGroup(obj any) {
 	}
 
 	logger.V(3).Info("Delete event for pod group", "podGroup", klog.KObj(pg))
-	apg := framework.NewGenericPodGroup(pg)
-	sched.Cache.RemoveGenericPodGroup(logger, apg)
-	sched.SchedulingQueue.DeleteGenericPodGroup(logger, apg)
+	gpg := fwk.NewGenericPodGroup(pg)
+	sched.Cache.RemoveGenericPodGroup(logger, gpg)
+	sched.SchedulingQueue.DeleteGenericPodGroup(logger, gpg)
 	sched.SchedulingQueue.MoveAllToActiveOrBackoffQueue(logger, evt, pg, nil, nil)
 }
 
@@ -547,9 +547,9 @@ func (sched *Scheduler) addCompositePodGroup(obj any) {
 	}
 
 	logger.V(3).Info("Add event for composite pod group", "compositePodGroup", klog.KObj(cpg))
-	apg := framework.NewGenericCompositePodGroup(cpg)
-	sched.Cache.AddGenericPodGroup(apg)
-	sched.SchedulingQueue.AddGenericPodGroup(logger, apg)
+	gpg := fwk.NewGenericCompositePodGroup(cpg)
+	sched.Cache.AddGenericPodGroup(gpg)
+	sched.SchedulingQueue.AddGenericPodGroup(logger, gpg)
 	sched.SchedulingQueue.MoveAllToActiveOrBackoffQueue(logger, evt, nil, cpg, nil)
 }
 
@@ -573,9 +573,9 @@ func (sched *Scheduler) updateCompositePodGroup(oldObj, newObj any) {
 	}
 
 	logger.V(4).Info("Update event for composite pod group", "compositePodGroup", klog.KObj(newCPG))
-	apg := framework.NewGenericCompositePodGroup(newCPG)
-	sched.Cache.UpdateGenericPodGroup(logger, apg)
-	sched.SchedulingQueue.UpdateGenericPodGroup(logger, apg)
+	gpg := fwk.NewGenericCompositePodGroup(newCPG)
+	sched.Cache.UpdateGenericPodGroup(logger, gpg)
+	sched.SchedulingQueue.UpdateGenericPodGroup(logger, gpg)
 	sched.SchedulingQueue.MoveAllToActiveOrBackoffQueue(logger, evt, oldCPG, newCPG, nil)
 }
 
@@ -601,9 +601,9 @@ func (sched *Scheduler) deleteCompositePodGroup(obj any) {
 	}
 
 	logger.V(3).Info("Delete event for composite pod group", "compositePodGroup", klog.KObj(cpg))
-	apg := framework.NewGenericCompositePodGroup(cpg)
-	sched.Cache.RemoveGenericPodGroup(logger, apg)
-	sched.SchedulingQueue.DeleteGenericPodGroup(logger, apg)
+	gpg := fwk.NewGenericCompositePodGroup(cpg)
+	sched.Cache.RemoveGenericPodGroup(logger, gpg)
+	sched.SchedulingQueue.DeleteGenericPodGroup(logger, gpg)
 	sched.SchedulingQueue.MoveAllToActiveOrBackoffQueue(logger, evt, cpg, nil, nil)
 }
 

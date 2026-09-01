@@ -837,7 +837,7 @@ func TestPreEnqueue(t *testing.T) {
 					if err != nil {
 						t.Fatalf("Failed to add podGroup %s to store: %v", pg.Name, err)
 					}
-					cache.AddGenericPodGroup(schedulerframework.NewGenericPodGroup(pg))
+					cache.AddGenericPodGroup(fwk.NewGenericPodGroup(pg))
 				}
 				if isCPGEnabled {
 					for _, cpg := range tt.initialCompositePodGroups {
@@ -845,7 +845,7 @@ func TestPreEnqueue(t *testing.T) {
 						if err != nil {
 							t.Fatalf("Failed to add podGroup %s to store: %v", cpg.Name, err)
 						}
-						cache.AddGenericPodGroup(schedulerframework.NewGenericCompositePodGroup(cpg))
+						cache.AddGenericPodGroup(fwk.NewGenericCompositePodGroup(cpg))
 					}
 				}
 
@@ -1029,7 +1029,7 @@ func TestPlacementFeasible(t *testing.T) {
 						} else {
 							cpg.Spec.SchedulingPolicy.Basic = &schedulingv1alpha3.CompositeBasicSchedulingPolicy{}
 						}
-						pgInfo.GenericPodGroup = schedulerframework.NewGenericCompositePodGroup(cpg)
+						pgInfo.GenericPodGroup = fwk.NewGenericCompositePodGroup(cpg)
 						objs = append(objs, cpg)
 					} else {
 						pg := st.MakePodGroup().Namespace(namespace).Name(pgName).ParentCompositePodGroup("cpg-root").Obj()
@@ -1038,7 +1038,7 @@ func TestPlacementFeasible(t *testing.T) {
 						} else {
 							pg.Spec.SchedulingPolicy.Basic = &schedulingv1beta1.BasicSchedulingPolicy{}
 						}
-						pgInfo.GenericPodGroup = schedulerframework.NewGenericPodGroup(pg)
+						pgInfo.GenericPodGroup = fwk.NewGenericPodGroup(pg)
 						objs = append(objs, pg)
 					}
 

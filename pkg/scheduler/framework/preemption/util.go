@@ -26,7 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	corev1helpers "k8s.io/component-helpers/scheduling/corev1"
 	fwk "k8s.io/kube-scheduler/framework"
-	"k8s.io/kubernetes/pkg/scheduler/util"
+	"k8s.io/kube-scheduler/util"
 )
 
 // PodTerminatingByPreemption returns true if the pod is in the termination state caused by scheduler preemption.

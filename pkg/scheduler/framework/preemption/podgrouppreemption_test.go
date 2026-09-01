@@ -39,6 +39,7 @@ import (
 	componentmetrics "k8s.io/component-base/metrics"
 	"k8s.io/klog/v2/ktesting"
 	fwk "k8s.io/kube-scheduler/framework"
+	"k8s.io/kube-scheduler/util"
 	"k8s.io/kubernetes/pkg/features"
 	internalcache "k8s.io/kubernetes/pkg/scheduler/backend/cache"
 	internalqueue "k8s.io/kubernetes/pkg/scheduler/backend/queue"
@@ -50,7 +51,6 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/metrics"
 	st "k8s.io/kubernetes/pkg/scheduler/testing"
 	tf "k8s.io/kubernetes/pkg/scheduler/testing/framework"
-	"k8s.io/kubernetes/pkg/scheduler/util"
 )
 
 type mockFilterPlugin struct {

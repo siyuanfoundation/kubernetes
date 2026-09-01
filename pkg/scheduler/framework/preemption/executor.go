@@ -36,11 +36,12 @@ import (
 	corev1helpers "k8s.io/component-helpers/scheduling/corev1"
 	"k8s.io/klog/v2"
 	fwk "k8s.io/kube-scheduler/framework"
+	"k8s.io/kube-scheduler/util"
 	apipod "k8s.io/kubernetes/pkg/api/v1/pod"
 	"k8s.io/kubernetes/pkg/scheduler/framework/parallelize"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/feature"
 	"k8s.io/kubernetes/pkg/scheduler/metrics"
-	"k8s.io/kubernetes/pkg/scheduler/util"
+	schedutil "k8s.io/kubernetes/pkg/scheduler/util"
 )
 
 type pendingVictim struct {
@@ -133,7 +134,7 @@ func NewExecutor(fh fwk.Handle, fts feature.Features) *Executor {
 			newStatus := victim.Status.DeepCopy()
 			updated := apipod.UpdatePodCondition(newStatus, condition)
 			if updated {
-				if err := util.PatchPodStatus(ctx, fh.ClientSet(), victim.Name, victim.Namespace, &victim.Status, newStatus); err != nil {
+				if err := schedutil.PatchPodStatus(ctx, fh.ClientSet(), victim.Name, victim.Namespace, &victim.Status, newStatus); err != nil {
 					if !apierrors.IsNotFound(err) {
 						logger.Error(err, "Could not add DisruptionTarget condition due to preemption", "preemptor", klog.KObj(preemptor), "victim", klog.KObj(victim))
 						return false, err
@@ -142,7 +143,7 @@ func NewExecutor(fh fwk.Handle, fts feature.Features) *Executor {
 					return false, nil
 				}
 			}
-			if err := util.DeletePod(ctx, fh.ClientSet(), victim); err != nil {
+			if err := schedutil.DeletePod(ctx, fh.ClientSet(), victim); err != nil {
 				if !apierrors.IsNotFound(err) {
 					logger.Error(err, "Tried to preempted pod", "pod", klog.KObj(victim), "preemptor", klog.KObj(preemptor))
 					return false, err
@@ -432,7 +433,7 @@ func clearNominatedNodeName(ctx context.Context, cs clientset.Interface, apiCach
 			}
 			podStatusCopy := p.Status.DeepCopy()
 			podStatusCopy.NominatedNodeName = ""
-			if err := util.PatchPodStatus(ctx, cs, p.Name, p.Namespace, &p.Status, podStatusCopy); err != nil {
+			if err := schedutil.PatchPodStatus(ctx, cs, p.Name, p.Namespace, &p.Status, podStatusCopy); err != nil {
 				errs = append(errs, err)
 			}
 		}

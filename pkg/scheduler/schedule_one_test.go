@@ -1084,7 +1084,7 @@ func TestSchedulerScheduleOne(t *testing.T) {
 
 		if scheduleAsPodGroup {
 			internalCache.AddPodGroupMember(item.sendPod)
-			internalCache.AddGenericPodGroup(framework.NewGenericPodGroup(podGroup))
+			internalCache.AddGenericPodGroup(fwk.NewGenericPodGroup(podGroup))
 		}
 		cache := &fakecache.Cache{
 			Cache: internalCache,
@@ -1170,7 +1170,7 @@ func TestSchedulerScheduleOne(t *testing.T) {
 		informerFactory.WaitForCacheSync(ctx.Done())
 
 		if scheduleAsPodGroup {
-			queue.AddGenericPodGroup(logger, framework.NewGenericPodGroup(podGroup))
+			queue.AddGenericPodGroup(logger, fwk.NewGenericPodGroup(podGroup))
 		}
 		queue.Add(ctx, item.sendPod)
 
@@ -1533,7 +1533,7 @@ func TestHandleSchedulingFailure_PodGroupFitErrorCloned(t *testing.T) {
 	informerFactory.Start(ctx.Done())
 	informerFactory.WaitForCacheSync(ctx.Done())
 
-	queue.AddGenericPodGroup(logger, framework.NewGenericPodGroup(pg))
+	queue.AddGenericPodGroup(logger, fwk.NewGenericPodGroup(pg))
 	queue.Add(ctx, pod1)
 	queue.Add(ctx, pod2)
 
@@ -5593,7 +5593,7 @@ func TestGetDifferentUIDPreCheck(t *testing.T) {
 	pgWithTarget := st.MakePodGroup().Name("pg-with-target").Obj()
 	pgWithTargetPod := &framework.QueuedPodGroupInfo{
 		PodGroupInfo: &framework.PodGroupInfo{
-			GenericPodGroup: framework.NewGenericPodGroup(pgWithTarget),
+			GenericPodGroup: fwk.NewGenericPodGroup(pgWithTarget),
 		},
 	}
 	pgWithTargetPod.AddPod(otherPodInfo1)
@@ -5602,7 +5602,7 @@ func TestGetDifferentUIDPreCheck(t *testing.T) {
 	pgWithoutTarget := st.MakePodGroup().Name("pg-without-target").Obj()
 	pgWithoutTargetPod := &framework.QueuedPodGroupInfo{
 		PodGroupInfo: &framework.PodGroupInfo{
-			GenericPodGroup: framework.NewGenericPodGroup(pgWithoutTarget),
+			GenericPodGroup: fwk.NewGenericPodGroup(pgWithoutTarget),
 		},
 	}
 	pgWithoutTargetPod.AddPod(otherPodInfo2)

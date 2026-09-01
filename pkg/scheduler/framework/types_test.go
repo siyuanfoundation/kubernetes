@@ -328,7 +328,7 @@ func TestQueuedPodGroupInfoOrdering(t *testing.T) {
 			pg := st.MakePodGroup().Namespace("default").Name("pg1").Obj()
 			pgqi := &QueuedPodGroupInfo{
 				PodGroupInfo: &PodGroupInfo{
-					GenericPodGroup: NewGenericPodGroup(pg),
+					GenericPodGroup: fwk.NewGenericPodGroup(pg),
 				},
 				QueuedPodInfos: make(map[fwk.EntityKey][]*QueuedPodInfo),
 			}
@@ -3577,7 +3577,7 @@ func TestPodGroupInfoGetChildrenSorting(t *testing.T) {
 	now := time.Now()
 	pgInfo := func(name, namespace string, creationTime time.Time) *PodGroupInfo {
 		return &PodGroupInfo{
-			GenericPodGroup: NewGenericPodGroup(&schedulingv1beta1.PodGroup{
+			GenericPodGroup: fwk.NewGenericPodGroup(&schedulingv1beta1.PodGroup{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:              name,
 					Namespace:         namespace,
@@ -3595,7 +3595,7 @@ func TestPodGroupInfoGetChildrenSorting(t *testing.T) {
 	pgInfo4 := pgInfo("pg4", "default", now)
 
 	pgi := &PodGroupInfo{
-		GenericPodGroup: NewGenericCompositePodGroup(&schedulingv1alpha3.CompositePodGroup{
+		GenericPodGroup: fwk.NewGenericCompositePodGroup(&schedulingv1alpha3.CompositePodGroup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "parent-cpg",
 				Namespace: "default",
@@ -3699,7 +3699,7 @@ func TestQueuedPodGroupInfo_AddCompositePodGroup(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			qpgi := &QueuedPodGroupInfo{
 				PodGroupInfo: &PodGroupInfo{
-					GenericPodGroup: NewGenericCompositePodGroup(tt.initialCPG),
+					GenericPodGroup: fwk.NewGenericCompositePodGroup(tt.initialCPG),
 					Children:        make([]*PodGroupInfo, 0),
 				},
 				QueuedPodInfos: make(map[fwk.EntityKey][]*QueuedPodInfo),
@@ -3761,13 +3761,13 @@ func TestQueuedPodGroupInfo_UpdateCompositePodGroup(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			qpgi := &QueuedPodGroupInfo{
 				PodGroupInfo: &PodGroupInfo{
-					GenericPodGroup: NewGenericCompositePodGroup(tt.initialCPG),
+					GenericPodGroup: fwk.NewGenericCompositePodGroup(tt.initialCPG),
 					Children:        make([]*PodGroupInfo, 0),
 				},
 				QueuedPodInfos: make(map[fwk.EntityKey][]*QueuedPodInfo),
 			}
 			tt.setup(qpgi)
-			qpgi.UpdateGenericPodGroup(NewGenericCompositePodGroup(tt.updateCPG))
+			qpgi.UpdateGenericPodGroup(fwk.NewGenericCompositePodGroup(tt.updateCPG))
 			tt.verify(t, qpgi)
 		})
 	}
@@ -3871,13 +3871,13 @@ func TestQueuedPodGroupInfo_RemoveCompositePodGroup(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			qpgi := &QueuedPodGroupInfo{
 				PodGroupInfo: &PodGroupInfo{
-					GenericPodGroup: NewGenericCompositePodGroup(cpgRoot),
+					GenericPodGroup: fwk.NewGenericCompositePodGroup(cpgRoot),
 					Children:        make([]*PodGroupInfo, 0),
 				},
 				QueuedPodInfos: make(map[fwk.EntityKey][]*QueuedPodInfo),
 			}
 			tt.setup(qpgi)
-			removed := qpgi.RemoveGenericPodGroup(NewGenericCompositePodGroup(tt.removeCPG))
+			removed := qpgi.RemoveGenericPodGroup(fwk.NewGenericCompositePodGroup(tt.removeCPG))
 			tt.verify(t, qpgi, removed)
 		})
 	}
@@ -3938,7 +3938,7 @@ func TestQueuedPodGroupInfo_AddPodGroup(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			qpgi := &QueuedPodGroupInfo{
 				PodGroupInfo: &PodGroupInfo{
-					GenericPodGroup: NewGenericCompositePodGroup(tt.initialCPG),
+					GenericPodGroup: fwk.NewGenericCompositePodGroup(tt.initialCPG),
 					Children:        make([]*PodGroupInfo, 0),
 				},
 				QueuedPodInfos: make(map[fwk.EntityKey][]*QueuedPodInfo),
@@ -4019,7 +4019,7 @@ func TestQueuedPodGroupInfo_UpdatePodGroup(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			qpgi := tt.setup()
-			qpgi.UpdateGenericPodGroup(NewGenericPodGroup(tt.updatePG))
+			qpgi.UpdateGenericPodGroup(fwk.NewGenericPodGroup(tt.updatePG))
 			tt.verify(t, qpgi)
 		})
 	}
@@ -4094,7 +4094,7 @@ func TestQueuedPodGroupInfo_RemovePodGroup(t *testing.T) {
 				QueuedPodInfos: make(map[fwk.EntityKey][]*QueuedPodInfo),
 			}
 			tt.setup(qpgi)
-			removed := qpgi.RemoveGenericPodGroup(NewGenericPodGroup(tt.removePG))
+			removed := qpgi.RemoveGenericPodGroup(fwk.NewGenericPodGroup(tt.removePG))
 			tt.verify(t, qpgi, removed)
 		})
 	}
@@ -4313,7 +4313,7 @@ func TestPodGroupInfo_GetUnscheduledPods(t *testing.T) {
 		{
 			name: "Standalone PodGroupInfo with unscheduled pods",
 			pgi: &PodGroupInfo{
-				GenericPodGroup: NewGenericPodGroup(pgStandalone),
+				GenericPodGroup: fwk.NewGenericPodGroup(pgStandalone),
 				UnscheduledPods: []*v1.Pod{pod1, pod2},
 			},
 			expected: []*v1.Pod{pod1, pod2},
@@ -4321,14 +4321,14 @@ func TestPodGroupInfo_GetUnscheduledPods(t *testing.T) {
 		{
 			name: "PodGroupInfo with children",
 			pgi: &PodGroupInfo{
-				GenericPodGroup: NewGenericCompositePodGroup(cpgParent),
+				GenericPodGroup: fwk.NewGenericCompositePodGroup(cpgParent),
 				Children: []*PodGroupInfo{
 					{
-						GenericPodGroup: NewGenericPodGroup(pgChild1),
+						GenericPodGroup: fwk.NewGenericPodGroup(pgChild1),
 						UnscheduledPods: []*v1.Pod{pod1},
 					},
 					{
-						GenericPodGroup: NewGenericPodGroup(pgChild2),
+						GenericPodGroup: fwk.NewGenericPodGroup(pgChild2),
 						UnscheduledPods: []*v1.Pod{pod2, pod3},
 					},
 				},
@@ -4338,23 +4338,23 @@ func TestPodGroupInfo_GetUnscheduledPods(t *testing.T) {
 		{
 			name: "Multi-level PodGroupInfo with children",
 			pgi: &PodGroupInfo{
-				GenericPodGroup: NewGenericCompositePodGroup(cpgRoot),
+				GenericPodGroup: fwk.NewGenericCompositePodGroup(cpgRoot),
 				Children: []*PodGroupInfo{
 					{
-						GenericPodGroup: NewGenericCompositePodGroup(cpgSub),
+						GenericPodGroup: fwk.NewGenericCompositePodGroup(cpgSub),
 						Children: []*PodGroupInfo{
 							{
-								GenericPodGroup: NewGenericPodGroup(pgChild1),
+								GenericPodGroup: fwk.NewGenericPodGroup(pgChild1),
 								UnscheduledPods: []*v1.Pod{pod1},
 							},
 							{
-								GenericPodGroup: NewGenericPodGroup(pgChild2),
+								GenericPodGroup: fwk.NewGenericPodGroup(pgChild2),
 								UnscheduledPods: []*v1.Pod{pod2, pod3},
 							},
 						},
 					},
 					{
-						GenericPodGroup: NewGenericPodGroup(pgChild3),
+						GenericPodGroup: fwk.NewGenericPodGroup(pgChild3),
 						UnscheduledPods: []*v1.Pod{pod4},
 					},
 				},
@@ -4375,14 +4375,14 @@ func TestPodGroupInfo_GetUnscheduledPods(t *testing.T) {
 
 func newPodGroupInfoForTest(pg *schedulingv1beta1.PodGroup, children ...*PodGroupInfo) *PodGroupInfo {
 	return &PodGroupInfo{
-		GenericPodGroup: NewGenericPodGroup(pg),
+		GenericPodGroup: fwk.NewGenericPodGroup(pg),
 		Children:        children,
 	}
 }
 
 func newCompositePodGroupInfoForTest(cpg *schedulingv1alpha3.CompositePodGroup, children ...*PodGroupInfo) *PodGroupInfo {
 	return &PodGroupInfo{
-		GenericPodGroup: NewGenericCompositePodGroup(cpg),
+		GenericPodGroup: fwk.NewGenericCompositePodGroup(cpg),
 		Children:        children,
 	}
 }

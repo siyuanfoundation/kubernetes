@@ -2718,7 +2718,7 @@ func TestScorePlacement_Resources(t *testing.T) {
 				}
 			}
 			podGroupInfo := &framework.PodGroupInfo{
-				GenericPodGroup: framework.NewGenericPodGroup(&schedulingv1beta1.PodGroup{}),
+				GenericPodGroup: fwk.NewGenericPodGroup(&schedulingv1beta1.PodGroup{}),
 				UnscheduledPods: tc.podGroupPods,
 			}
 			podGroupAssignments := &fwk.PodGroupAssignments{
