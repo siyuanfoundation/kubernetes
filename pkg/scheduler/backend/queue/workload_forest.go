@@ -34,7 +34,7 @@ import (
 // Outside of the scheduling queue, cache should be used as the source of truth.
 // This structure is not thread-safe and should be accessed only under the lock of the PriorityQueue.
 type workloadForest struct {
-	podGroups map[fwk.EntityKey]*framework.GenericPodGroup
+	podGroups map[fwk.EntityKey]*fwk.GenericPodGroup
 	// children maps a parent CompositePodGroup key to its direct children keys (PodGroups or CompositePodGroups).
 	// As an invariant of this structure, a child-to-parent relationship is populated here regardless of whether
 	// the parent object has been explicitly observed yet. This prevents the need to iterate over all existing
@@ -45,14 +45,14 @@ type workloadForest struct {
 
 func newWorkloadForest(isCompositePodGroupEnabled bool) *workloadForest {
 	return &workloadForest{
-		podGroups:                  make(map[fwk.EntityKey]*framework.GenericPodGroup),
+		podGroups:                  make(map[fwk.EntityKey]*fwk.GenericPodGroup),
 		children:                   make(map[fwk.EntityKey]sets.Set[fwk.EntityKey]),
 		isCompositePodGroupEnabled: isCompositePodGroupEnabled,
 	}
 }
 
 // addGenericPodGroup adds a GenericPodGroup to the forest.
-func (wf *workloadForest) addGenericPodGroup(gpg *framework.GenericPodGroup) {
+func (wf *workloadForest) addGenericPodGroup(gpg *fwk.GenericPodGroup) {
 	key := gpg.GetKey()
 	wf.podGroups[key] = gpg
 
@@ -72,12 +72,12 @@ func (wf *workloadForest) addGenericPodGroup(gpg *framework.GenericPodGroup) {
 }
 
 // updateGenericPodGroup updates a GenericPodGroup in the forest.
-func (wf *workloadForest) updateGenericPodGroup(gpg *framework.GenericPodGroup) {
+func (wf *workloadForest) updateGenericPodGroup(gpg *fwk.GenericPodGroup) {
 	wf.podGroups[gpg.GetKey()] = gpg
 }
 
 // deleteGenericPodGroup removes a GenericPodGroup from the forest.
-func (wf *workloadForest) deleteGenericPodGroup(gpg *framework.GenericPodGroup) {
+func (wf *workloadForest) deleteGenericPodGroup(gpg *fwk.GenericPodGroup) {
 	key := gpg.GetKey()
 	delete(wf.podGroups, key)
 
@@ -109,7 +109,7 @@ func (wf *workloadForest) getRootLookupInfoForPod(pod *v1.Pod) (*framework.Queue
 }
 
 // getRootLookupInfo returns the lookup info of the current root PodGroup or CompositePodGroup for a given GenericPodGroup.
-func (wf *workloadForest) getRootLookupInfo(gpg *framework.GenericPodGroup) (*framework.QueuedPodGroupInfo, bool) {
+func (wf *workloadForest) getRootLookupInfo(gpg *fwk.GenericPodGroup) (*framework.QueuedPodGroupInfo, bool) {
 	storedGPG, exists := wf.podGroups[gpg.GetKey()]
 	if !exists {
 		return nil, false
@@ -199,7 +199,7 @@ func (wf *workloadForest) getLeafPodGroups(logger klog.Logger, rootLookupInfo *f
 
 // buildPodGroupInfo recursively constructs a PodGroupInfo representation for a given GenericPodGroup
 // and all its children, using the provided visited set to detect cycles in the hierarchy.
-func (wf *workloadForest) buildPodGroupInfo(logger klog.Logger, gpg *framework.GenericPodGroup, visited sets.Set[fwk.EntityKey]) *framework.PodGroupInfo {
+func (wf *workloadForest) buildPodGroupInfo(logger klog.Logger, gpg *fwk.GenericPodGroup, visited sets.Set[fwk.EntityKey]) *framework.PodGroupInfo {
 	key := gpg.GetKey()
 	if visited.Has(key) {
 		utilruntime.HandleErrorWithLogger(logger, nil, "Cycle detected in composite pod group hierarchy when building PodGroupInfo", "groupType", gpg.GetType(), "group", klog.KObj(gpg))

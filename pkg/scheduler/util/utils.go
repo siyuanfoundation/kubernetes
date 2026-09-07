@@ -25,7 +25,6 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	resourceapi "k8s.io/api/resource/v1"
-	schedulingv1alpha3 "k8s.io/api/scheduling/v1alpha3"
 	schedulingv1beta1 "k8s.io/api/scheduling/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -271,27 +270,4 @@ func GetHostPorts(pod *v1.Pod) []v1.ContainerPort {
 		}
 	}
 	return ports
-}
-
-// PodGroupPriority returns priority of a given pod group.
-func PodGroupPriority(pg *schedulingv1beta1.PodGroup) int32 {
-	if pg.Spec.Priority != nil {
-		return *pg.Spec.Priority
-	}
-	// When priority of a pod group is nil, it means it was created at a time
-	// that there was no global default priority class and the priority class
-	// name of the pod group was empty. So, we resolve to the static default priority.
-	return 0
-}
-
-// CompositePodGroupPriority returns priority of a given composite pod group.
-func CompositePodGroupPriority(cpg *schedulingv1alpha3.CompositePodGroup) int32 {
-	if cpg.Spec.Priority != nil {
-		return *cpg.Spec.Priority
-	}
-	// When priority of a composite pod group is nil, it means it was created
-	// at a time that there was no global default priority class and the priority
-	// class name of the composite pod group was empty. So, we resolve to the
-	// static default priority.
-	return 0
 }

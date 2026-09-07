@@ -5768,7 +5768,7 @@ scheduler_plugin_evaluation_total{extension_point="Score",plugin="plugin-eval-sc
 func newQueuedPodGroupInfoForTest(ns, name string) *framework.QueuedPodGroupInfo {
 	return &framework.QueuedPodGroupInfo{
 		PodGroupInfo: &framework.PodGroupInfo{
-			GenericPodGroup: framework.NewGenericPodGroup(&schedulingv1beta1.PodGroup{
+			GenericPodGroup: fwk.NewGenericPodGroup(&schedulingv1beta1.PodGroup{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: ns,
 					Name:      name,

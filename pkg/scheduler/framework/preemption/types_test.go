@@ -894,11 +894,11 @@ func TestNewDomainForWorkloadPreemption(t *testing.T) {
 			}
 
 			for _, pg := range pgs {
-				cache.AddGenericPodGroup(framework.NewGenericPodGroup(pg))
+				cache.AddGenericPodGroup(fwk.NewGenericPodGroup(pg))
 			}
 			if tt.enableCompositePodGroup {
 				for _, cpg := range cpgs {
-					cache.AddGenericPodGroup(framework.NewGenericCompositePodGroup(cpg))
+					cache.AddGenericPodGroup(fwk.NewGenericCompositePodGroup(cpg))
 				}
 			}
 
@@ -1156,18 +1156,18 @@ func TestNewDomainVictim(t *testing.T) {
 func newTestPodGroupInfo(pg *schedulingv1beta1.PodGroup, cpg *schedulingv1alpha3.CompositePodGroup, pods []*v1.Pod) *framework.PodGroupInfo {
 	if cpg != nil {
 		return &framework.PodGroupInfo{
-			GenericPodGroup: framework.NewGenericCompositePodGroup(cpg),
+			GenericPodGroup: fwk.NewGenericCompositePodGroup(cpg),
 			UnscheduledPods: pods,
 			Children: []*framework.PodGroupInfo{
 				{
-					GenericPodGroup: framework.NewGenericPodGroup(&schedulingv1beta1.PodGroup{}),
+					GenericPodGroup: fwk.NewGenericPodGroup(&schedulingv1beta1.PodGroup{}),
 					UnscheduledPods: pods,
 				},
 			},
 		}
 	}
 	return &framework.PodGroupInfo{
-		GenericPodGroup: framework.NewGenericPodGroup(pg),
+		GenericPodGroup: fwk.NewGenericPodGroup(pg),
 		UnscheduledPods: pods,
 	}
 }

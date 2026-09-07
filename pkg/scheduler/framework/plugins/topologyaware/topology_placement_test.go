@@ -476,13 +476,13 @@ func TestGeneratePlacements(t *testing.T) {
 
 func makePodGroupInfoFromPG(pg *schedulingapi.PodGroup) fwk.PodGroupInfo {
 	return &framework.PodGroupInfo{
-		GenericPodGroup: framework.NewGenericPodGroup(pg),
+		GenericPodGroup: fwk.NewGenericPodGroup(pg),
 	}
 }
 
 func makePodGroupInfoFromCPG(cpg *schedulingv1alphav3.CompositePodGroup) fwk.PodGroupInfo {
 	return &framework.PodGroupInfo{
-		GenericPodGroup: framework.NewGenericCompositePodGroup(cpg),
+		GenericPodGroup: fwk.NewGenericCompositePodGroup(cpg),
 	}
 }
 

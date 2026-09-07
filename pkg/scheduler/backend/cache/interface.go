@@ -138,13 +138,13 @@ type Cache interface {
 	RemovePodGroupMember(pod *v1.Pod)
 
 	// AddGenericPodGroup adds a generic pod group object to the cache.
-	AddGenericPodGroup(apg *framework.GenericPodGroup)
+	AddGenericPodGroup(gpg *fwk.GenericPodGroup)
 
 	// UpdateGenericPodGroup updates a generic pod group object in the cache.
-	UpdateGenericPodGroup(logger klog.Logger, apg *framework.GenericPodGroup)
+	UpdateGenericPodGroup(logger klog.Logger, gpg *fwk.GenericPodGroup)
 
 	// RemoveGenericPodGroup removes a generic pod group object from the cache.
-	RemoveGenericPodGroup(logger klog.Logger, apg *framework.GenericPodGroup)
+	RemoveGenericPodGroup(logger klog.Logger, gpg *fwk.GenericPodGroup)
 
 	// BuildHierarchySnapshotFromPod returns a snapshot of the pod group hierarchy for the given pod.
 	BuildHierarchySnapshotFromPod(pod *v1.Pod) (fwk.PodGroupManager, error)

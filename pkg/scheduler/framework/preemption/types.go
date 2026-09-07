@@ -28,9 +28,10 @@ import (
 	"k8s.io/klog/v2"
 	extenderv1 "k8s.io/kube-scheduler/extender/v1"
 	fwk "k8s.io/kube-scheduler/framework"
+	"k8s.io/kube-scheduler/util"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/helper"
-	"k8s.io/kubernetes/pkg/scheduler/util"
+	schedutil "k8s.io/kubernetes/pkg/scheduler/util"
 )
 
 type podGroupPreemptor struct {
@@ -427,7 +428,7 @@ func NewVictim(pods []fwk.PodInfo, priority int32, keyType fwk.EntityKeyType) (V
 
 	var earliest *metav1.Time
 	for _, pInfo := range pods {
-		t := util.GetPodStartTime(pInfo.GetPod())
+		t := schedutil.GetPodStartTime(pInfo.GetPod())
 		if earliest == nil || (t != nil && t.Before(earliest)) {
 			earliest = t
 		}

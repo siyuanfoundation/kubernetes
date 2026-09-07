@@ -117,7 +117,7 @@ func (sched *Scheduler) reconcilePodGroupWithSnapshot(pgi *framework.PodGroupInf
 				return err
 			}
 		}
-		pgi.GenericPodGroup = framework.NewGenericCompositePodGroup(compositePodGroup)
+		pgi.GenericPodGroup = fwk.NewGenericCompositePodGroup(compositePodGroup)
 	} else {
 		podGroup, err := sched.nodeInfoSnapshot.PodGroups().Get(pgi.GetNamespace(), pgi.GetName())
 		if err != nil {
@@ -129,7 +129,7 @@ func (sched *Scheduler) reconcilePodGroupWithSnapshot(pgi *framework.PodGroupInf
 				ptr.Deref(podGroup.Spec.ParentCompositePodGroupName, "[unset]"),
 				ptr.Deref(pgi.PodGroup.Spec.ParentCompositePodGroupName, "[unset]"))
 		}
-		pgi.GenericPodGroup = framework.NewGenericPodGroup(podGroup)
+		pgi.GenericPodGroup = fwk.NewGenericPodGroup(podGroup)
 	}
 	return nil
 }
