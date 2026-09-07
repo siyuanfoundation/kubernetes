@@ -702,6 +702,11 @@ func (util *ISCSIUtil) DetachBlockISCSIDisk(c iscsiDiskUnmapper, mapPath string)
 	devicePath := getDevByPath(portals[0], iqn, lun)
 	klog.V(5).Infof("iscsi: devicePath: %s", devicePath)
 	if _, err := os.Stat(devicePath); err != nil {
+		if !os.IsNotExist(err) {
+			// The path exists but cannot be accessed (permissions, corrupted
+			// filesystem, ...): surface it instead of continuing.
+			return fmt.Errorf("failed to access devicePath %s: %w", devicePath, err)
+		}
 		// The by-path link may already be gone if the iSCSI session was lost
 		// before teardown ran. The remaining steps handle a missing session
 		// (detachISCSIDisk ignores ISCSI_ERR_NO_OBJS_FOUND and
