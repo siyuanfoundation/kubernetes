@@ -473,10 +473,16 @@ func TestDetachBlockISCSIDiskMissingDevicePath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Errorf("error removing temp dir %s: %v", tmpDir, err)
+		}
+	}()
 
 	plugMgr := volume.VolumePluginMgr{}
-	plugMgr.InitPlugins(ProbeVolumePlugins(), nil /* prober */, volumetest.NewFakeVolumeHost(t, tmpDir, nil, nil))
+	if err := plugMgr.InitPlugins(ProbeVolumePlugins(), nil /* prober */, volumetest.NewFakeVolumeHost(t, tmpDir, nil, nil)); err != nil {
+		t.Fatalf("error initializing plugins: %v", err)
+	}
 	plug, err := plugMgr.FindPluginByName(iscsiPluginName)
 	if err != nil {
 		t.Fatalf("can't find the plugin by name: %v", err)
