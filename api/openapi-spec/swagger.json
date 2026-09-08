@@ -8040,7 +8040,8 @@
           "description": "Time of the last occurrence observed"
         }
       },
-      "type": "object"
+      "type": "object",
+      "x-kubernetes-map-type": "atomic"
     },
     "io.k8s.api.core.v1.EventSource": {
       "description": "EventSource contains information for an event.",
@@ -13798,7 +13799,8 @@
         "count",
         "lastObservedTime"
       ],
-      "type": "object"
+      "type": "object",
+      "x-kubernetes-map-type": "atomic"
     },
     "io.k8s.api.flowcontrol.v1.ExemptPriorityLevelConfiguration": {
       "description": "ExemptPriorityLevelConfiguration describes the configurable aspects of the handling of exempt requests. In the mandatory exempt configuration object the values in the fields here can be modified by authorized users, unlike the rest of the `spec`.",

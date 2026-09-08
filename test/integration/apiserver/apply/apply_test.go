@@ -3989,14 +3989,10 @@ func TestApplyFormerlyAtomicFields(t *testing.T) {
 }
 
 func TestApplyEventSeriesGranularToAtomic(t *testing.T) {
-	// 1. Create an Event with its Series owned by granular fields
-	// 2. Attempt to re-apply the original Event using Server-Side Apply
-	// 3. Check that the operation was successful and the managed fields are atomic
-
 	client, closeFn := setup(t)
 	defer closeFn()
 
-	oldEvent := []byte(`{
+	event := []byte(`{
 		"apiVersion": "v1",
 		"kind": "Event",
 		"metadata": {
@@ -4012,7 +4008,7 @@ func TestApplyEventSeriesGranularToAtomic(t *testing.T) {
 		"message": "TestMessage",
 		"type": "Normal",
 		"series": {
-			"count": 1,
+			"count": 2,
 			"lastObservedTime": "2023-01-01T00:00:00.000000Z"
 		}
 	}`)
@@ -4028,21 +4024,18 @@ func TestApplyEventSeriesGranularToAtomic(t *testing.T) {
 					"apiVersion": "v1",
 					"fieldsType": "FieldsV1",
 					"fieldsV1": {
-						"f:involvedObject": {
-							"f:kind": {},
-							"f:name": {},
-							"f:namespace": {}
-						},
+						"f:involvedObject": {},
 						"f:message": {},
 						"f:reason": {},
 						"f:series": {
+							".": {},
 							"f:count": {},
 							"f:lastObservedTime": {}
 						},
 						"f:type": {}
 					},
-					"manager": "apply_test",
-					"operation": "Apply",
+					"manager": "recorder",
+					"operation": "Update",
 					"time": "2023-01-01T00:00:00.000000Z"
 				}
 			]
@@ -4057,46 +4050,54 @@ func TestApplyEventSeriesGranularToAtomic(t *testing.T) {
 			"namespace": "default"
 		},
 		"series": {
-			"count": 2,
+			"count": 3,
 			"lastObservedTime": "2023-01-01T00:01:00.000000Z"
 		}
 	}`)
 
-	// Create Event
-	originalObj, err := client.CoreV1().RESTClient().
+	_, err := client.CoreV1().RESTClient().
 		Post().
-		Param("fieldManager", "apply_test").
+		Param("fieldManager", "recorder").
 		Resource("events").
 		Namespace("default").
-		Body(oldEvent).
+		Body(event).
 		Do(context.TODO()).
 		Get()
-
 	if err != nil {
-		t.Fatalf("Failed to apply object: %v", err)
-	} else if _, ok := originalObj.(*v1.Event); !ok {
-		t.Fatalf("returned object is incorrect type: %T", originalObj)
+		t.Fatalf("Failed to create object: %v", err)
 	}
 
-	// Directly set managed fields to object using StrategicMergePatch
-	newObj, err := client.CoreV1().RESTClient().
+	// Set managed fields to object
+	_, err = client.CoreV1().RESTClient().
 		Patch(types.StrategicMergePatchType).
 		Name("test-event").
 		Namespace("default").
-		Param("fieldManager", "apply_test").
+		Param("fieldManager", "recorder").
 		Resource("events").
 		Body(managedFieldsUpdate).
 		Do(context.TODO()).
 		Get()
-
 	if err != nil {
-		t.Fatalf("Failed to apply object: %v", err)
-	} else if _, ok := newObj.(*v1.Event); !ok {
-		t.Fatalf("returned object is incorrect type: %T", newObj)
+		t.Fatalf("Failed to set managed fields: %v", err)
 	}
 
-	// Re-apply using Server-Side Apply
-	newObj, err = client.CoreV1().RESTClient().
+	_, err = client.CoreV1().RESTClient().
+		Patch(types.ApplyPatchType).
+		Name("test-event").
+		Namespace("default").
+		Param("fieldManager", "apply_test").
+		Resource("events").
+		Body(applyEvent).
+		Do(context.TODO()).
+		Get()
+	if !apierrors.IsConflict(err) {
+		t.Fatalf("expected conflict on series, got: %v", err)
+	}
+	if cause, ok := apierrors.StatusCause(err, metav1.CauseTypeFieldManagerConflict); !ok || cause.Field != ".series" {
+		t.Fatalf("expected conflict on .series, got: %v", err)
+	}
+
+	newObj, err := client.CoreV1().RESTClient().
 		Patch(types.ApplyPatchType).
 		Name("test-event").
 		Namespace("default").
@@ -4106,30 +4107,37 @@ func TestApplyEventSeriesGranularToAtomic(t *testing.T) {
 		Body(applyEvent).
 		Do(context.TODO()).
 		Get()
-
 	if err != nil {
 		t.Fatalf("Failed to apply object: %v", err)
 	}
 
-	// Verify the new object's managedFields
-	managedFields := newObj.(*v1.Event).ManagedFields
-	if len(managedFields) == 0 {
-		t.Fatalf("expected managed fields to be present")
+	var expectedManagedFields []metav1.ManagedFieldsEntry
+	expectedManagedFieldsString := []byte(`[
+		{
+			"apiVersion": "v1",
+			"fieldsType": "FieldsV1",
+			"fieldsV1": {"f:series":{}},
+			"manager": "apply_test",
+			"operation": "Apply"
+		},
+		{
+			"apiVersion": "v1",
+			"fieldsType": "FieldsV1",
+			"fieldsV1": {"f:involvedObject":{},"f:message":{},"f:reason":{},"f:type":{}},
+			"manager": "recorder",
+			"operation": "Update"
+		}
+	]`)
+	if err := json.Unmarshal(expectedManagedFieldsString, &expectedManagedFields); err != nil {
+		t.Fatalf("unexpectedly failed to decode expected managed fields: %v", err)
 	}
 
-	foundSeries := false
-	for _, entry := range managedFields {
-		if entry.Manager == "apply_test" {
-			fieldsV1 := string(entry.FieldsV1.GetRawBytes())
-			if !strings.Contains(fieldsV1, `"f:series":{}`) {
-				t.Fatalf("expected atomic f:series:{}, but got %s", fieldsV1)
-			}
-			foundSeries = true
-			break
-		}
+	managedFields := newObj.(*v1.Event).ManagedFields
+	for i := range managedFields {
+		managedFields[i].Time = nil
 	}
-	if !foundSeries {
-		t.Fatalf("could not find managed fields for apply_test manager")
+	if !reflect.DeepEqual(expectedManagedFields, managedFields) {
+		t.Fatalf("unexpected managed fields: %v", cmp.Diff(expectedManagedFields, managedFields))
 	}
 }
 
