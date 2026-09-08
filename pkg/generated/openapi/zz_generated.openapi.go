@@ -23286,6 +23286,7 @@ func schema_k8sio_api_core_v1_EphemeralVolumeSource(ref common.ReferenceCallback
 						},
 					},
 				},
+				Required: []string{"volumeClaimTemplate"},
 			},
 		},
 		Dependencies: []string{
@@ -24355,7 +24356,7 @@ func schema_k8sio_api_core_v1_ISCSIPersistentVolumeSource(ref common.ReferenceCa
 						},
 					},
 				},
-				Required: []string{"targetPortal", "iqn", "lun"},
+				Required: []string{"targetPortal", "iqn"},
 			},
 		},
 		Dependencies: []string{
@@ -24463,7 +24464,7 @@ func schema_k8sio_api_core_v1_ISCSIVolumeSource(ref common.ReferenceCallback) co
 						},
 					},
 				},
-				Required: []string{"targetPortal", "iqn", "lun"},
+				Required: []string{"targetPortal", "iqn"},
 			},
 		},
 		Dependencies: []string{
@@ -25124,7 +25125,6 @@ func schema_k8sio_api_core_v1_ModifyVolumeStatus(ref common.ReferenceCallback) c
 						},
 					},
 				},
-				Required: []string{"status"},
 			},
 		},
 	}
@@ -31336,7 +31336,7 @@ func schema_k8sio_api_core_v1_ScaleIOPersistentVolumeSource(ref common.Reference
 						},
 					},
 				},
-				Required: []string{"gateway", "system", "secretRef"},
+				Required: []string{"gateway", "system", "volumeName"},
 			},
 		},
 		Dependencies: []string{
@@ -31425,7 +31425,7 @@ func schema_k8sio_api_core_v1_ScaleIOVolumeSource(ref common.ReferenceCallback) 
 						},
 					},
 				},
-				Required: []string{"gateway", "system", "secretRef"},
+				Required: []string{"gateway", "system", "volumeName"},
 			},
 		},
 		Dependencies: []string{
@@ -32775,6 +32775,7 @@ func schema_k8sio_api_core_v1_StorageOSPersistentVolumeSource(ref common.Referen
 						},
 					},
 				},
+				Required: []string{"volumeName"},
 			},
 		},
 		Dependencies: []string{
@@ -32824,6 +32825,7 @@ func schema_k8sio_api_core_v1_StorageOSVolumeSource(ref common.ReferenceCallback
 						},
 					},
 				},
+				Required: []string{"volumeName"},
 			},
 		},
 		Dependencies: []string{
@@ -33708,6 +33710,7 @@ func schema_k8sio_api_core_v1_VolumeNodeAffinity(ref common.ReferenceCallback) c
 						},
 					},
 				},
+				Required: []string{"required"},
 			},
 		},
 		Dependencies: []string{
