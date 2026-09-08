@@ -535,6 +535,16 @@ linters:
       # Analyzers which are kept enabled are not
       # called out here, see https://pkg.go.dev/golang.org/x/tools/go/analysis/passes/modernize#section-documentation
       # for the full list.
+      #
+      # We don't pro-actively modernize existing code, so checks need to be disabled
+      # for the base config unless we happen to pass the check already.
+      # For new language features (identified with e.g. "go 1.27" for a feature added in 1.27)
+      # we hold back enabling as hint to reduce the risk that usage of the feature makes
+      # backporting harder. Waiting until all supported releases support the feature is safe,
+      # but it's also okay to go faster because backports to very old releases become less
+      # likely over time and some features might be worth a hint sooner - use common sense.
+      #
+      # Please keep sorted alphabetically.
       disable:
         # Replace interface{} with any.
         #
@@ -543,6 +553,9 @@ linters:
         # consistency with existing code
         # and it's just syntactic sugar.
         - any
+        # go 1.27: can declare embedded fields inline
+        # TODO Kubernetes 1.39: limit to base config
+        - embedlit
         # Suggest replacing omitempty with omitzero for struct fields.
         #
         # Disabled because might interfere
