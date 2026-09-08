@@ -1036,10 +1036,13 @@ func mapToResizableContainerInfo(containers []draContainerInfo) []podresize.Resi
 	return res
 }
 
-var _ = framework.SIGDescribe("node")("DRA Node Allocatable Resources", framework.WithLabel("DRA"), framework.WithSerial(), feature.DynamicResourceAllocation, framework.WithFeatureGate(features.DRANodeAllocatableResources), framework.WithFeatureGate(features.InPlacePodLevelResourcesVerticalScaling), func() {
+var _ = framework.SIGDescribe("node")(framework.WithLabel("DRA"), "Node Allocatable Resources", feature.DynamicResourceAllocation, framework.WithFeatureGate(features.DRANodeAllocatableResources), func() {
 	f := framework.NewDefaultFramework("dra-node-allocatable-resources")
 	f.NamespacePodSecurityLevel = admissionapi.LevelPrivileged
 
 	doNodeAllocatableCgroupsTests(f)
-	doNodeAllocatableResizeTests(f)
+
+	f.Context("resize", framework.WithFeatureGate(features.InPlacePodLevelResourcesVerticalScaling), func() {
+		doNodeAllocatableResizeTests(f)
+	})
 })
