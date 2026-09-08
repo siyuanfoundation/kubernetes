@@ -560,6 +560,16 @@ linters:
       # Analyzers which are kept enabled are not
       # called out here, see https://pkg.go.dev/golang.org/x/tools/go/analysis/passes/modernize#section-documentation
       # for the full list.
+      #
+      # We don't pro-actively modernize existing code, so checks need to be disabled
+      # for the base config unless we happen to pass the check already.
+      # For new language features (identified with e.g. "go 1.27" for a feature added in 1.27)
+      # we hold back enabling as hint to reduce the risk that usage of the feature makes
+      # backporting harder. Waiting until all supported releases support the feature is safe,
+      # but it's also okay to go faster because backports to very old releases become less
+      # likely over time and some features might be worth a hint sooner - use common sense.
+      #
+      # Please keep sorted alphabetically.
       disable:
         # Replace interface{} with any.
         #
@@ -568,6 +578,13 @@ linters:
         # consistency with existing code
         # and it's just syntactic sugar.
         - any
+        # go 1.19: can simplify atomic int assignment/access
+        - atomictypes
+        # go 1.27: can declare embedded fields inline
+        # TODO Kubernetes 1.39: limit to base config
+        - embedlit
+        # go 1.26: can simplify with errors.AsType
+        - errorsastype
         # Replace explicit loops over maps with calls to maps package.
         #
         # Completely disabled because the benefit
@@ -577,36 +594,27 @@ linters:
         #
         # A useful hint for new code.
         - minmax
-
-        # Disable things that should only be updated in old code where it really matters.
-
         # go 1.26: can simplify with new(expr)
         - newexpr
+        # Replace 3-clause for loops with for-range over integers.
+        #
+        # A useful hint for new code (makes it shorter).
+        - rangeint
         # go 1.26: can use iterators instead of Len/At-style APIs
         - stditerators
-        # go 1.27: can declare embedded fields inline
-        - embedlit
-        # go 1.27: can simplify with reflect.TypeAssert
+        # go 1.25: can simplify with reflect.TypeAssert
         - reflecttypeassert
-        # go 1.27: can simplify atomic int assignment/access
-        - atomictypes
-        # go 1.27: can simplify with errors.AsType
-        - errorsastype
-        # go 1.27: can simplify with slices.Backward
+        # Replace reflect.TypeOf(x) with TypeFor[T]().
+        #
+        # A useful hint for new code, it could be more efficient.
+        - reflecttypefor
+        # go 1.23: can simplify with slices.Backward
         - slicesbackward
         # Suggest replacing omitempty with omitzero for struct fields.
         #
         # Disabled because might interfere
         # with encoding of API structs.
         - omitzero
-        # Replace 3-clause for loops with for-range over integers.
-        #
-        # A useful hint for new code (makes it shorter).
-        - rangeint
-        # Replace reflect.TypeOf(x) with TypeFor[T]().
-        #
-        # A useful hint for new code, it could be more efficient.
-        - reflecttypefor
         # Replace loops with slices.Contains or slices.ContainsFunc.
         #
         # A useful hint because it can make code more obvious
