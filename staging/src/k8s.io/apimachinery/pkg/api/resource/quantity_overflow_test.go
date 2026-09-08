@@ -366,7 +366,7 @@ func quantityAccessorCases() []accessorCase {
 			wantMilli:      0,
 			wantScaledKilo: 0,
 			wantAsInt64:    0, wantAsInt64OK: true,
-			wantFloat: math.NaN(), floatTODO: "want 0 once #139893 guards zero before the Pow10 multiply",
+			wantFloat:  0,
 			wantString: "0",
 		},
 		{
@@ -388,7 +388,7 @@ func quantityAccessorCases() []accessorCase {
 			wantMilli:      0,
 			wantScaledKilo: 0,
 			wantAsInt64:    0, wantAsInt64OK: false,
-			wantFloat: math.NaN(), floatTODO: "want 0 once #139893 guards zero before the Pow10 multiply",
+			wantFloat:  0,
 			wantString: "0",
 		},
 		{
