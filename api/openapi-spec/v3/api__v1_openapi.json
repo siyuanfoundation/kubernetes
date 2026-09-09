@@ -2443,7 +2443,8 @@
             "description": "Time of the last occurrence observed"
           }
         },
-        "type": "object"
+        "type": "object",
+        "x-kubernetes-map-type": "atomic"
       },
       "io.k8s.api.core.v1.EventSource": {
         "description": "EventSource contains information for an event.",
