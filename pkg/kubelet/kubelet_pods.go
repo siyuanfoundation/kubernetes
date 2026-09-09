@@ -27,7 +27,6 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -149,15 +148,14 @@ func (kl *Kubelet) getKubeletMappings(logger klog.Logger, idsPerPod uint32) (uin
 	// So we check for the kubelet user first, if it exist and getsubids is present, we expect
 	// to get _some_ configuration. If the user exist and getsubids doesn't give us any
 	// configuration, then we consider the remote down and fail to start the kubelet.
-	_, err := user.Lookup(kubeletUser)
+	found, err := getentUserExists(kubeletUser)
 	if err != nil {
-		var unknownUserErr user.UnknownUserError
-		if goerrors.As(err, &unknownUserErr) {
-			// if the user is not found, we assume that the user is not configured
-			logger.V(5).Info("user namespaces: user not found, using default mappings", "user", kubeletUser)
-			return defaultFirstID, defaultLen, nil
-		}
 		return 0, 0, err
+	}
+	if !found {
+		// if the user is not found, we assume that the user is not configured
+		logger.V(5).Info("user namespaces: user not found, using default mappings", "user", kubeletUser)
+		return defaultFirstID, defaultLen, nil
 	}
 
 	execName := "getsubids"
@@ -182,6 +180,24 @@ func (kl *Kubelet) getKubeletMappings(logger klog.Logger, idsPerPod uint32) (uin
 	}
 	logger.V(5).Info("user namespaces: user found, using mappings from getsubids", "user", kubeletUser)
 	return parseGetSubIdsOutput(string(outUids))
+}
+
+// getentUserExists checks name via getent(1), so it sees NSS accounts (sssd,
+// LDAP, FreeIPA) that a static (CGO_ENABLED=0) os/user would miss.
+func getentUserExists(name string) (bool, error) {
+	getent, err := exec.LookPath("getent")
+	if err != nil {
+		return false, nil // no getent: same as "not configured"
+	}
+	err = exec.Command(getent, "passwd", name).Run()
+	if err == nil {
+		return true, nil
+	}
+	var exitErr *exec.ExitError
+	if goerrors.As(err, &exitErr) && exitErr.ExitCode() == 2 {
+		return false, nil // getent(1): 2 = key not found
+	}
+	return false, fmt.Errorf("looking up user %q via getent: %w", name, err)
 }
 
 // Get a list of pods that have data directories.

@@ -8567,6 +8567,64 @@ func TestParseGetSubIdsOutput(t *testing.T) {
 	}
 }
 
+func TestGetentUserExists(t *testing.T) {
+	if goruntime.GOOS != "linux" {
+		t.Skip("getent is a Linux tool")
+	}
+	tests := []struct {
+		name       string
+		getentExit string // shell script body for a fake "getent"; empty means no getent on PATH
+		wantFound  bool
+		wantErr    bool
+	}{
+		{
+			name:       "user found",
+			getentExit: "exit 0",
+			wantFound:  true,
+		},
+		{
+			name:       "user not found",
+			getentExit: "exit 2", // getent(1): 2 = key not found
+			wantFound:  false,
+		},
+		{
+			name:       "getent fails for another reason",
+			getentExit: "exit 1",
+			wantErr:    true,
+		},
+		{
+			name:      "getent not installed",
+			wantFound: false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			binDir := t.TempDir()
+			if tc.getentExit != "" {
+				script := "#!/bin/sh\n" + tc.getentExit + "\n"
+				if err := os.WriteFile(filepath.Join(binDir, "getent"), []byte(script), 0o755); err != nil {
+					t.Fatalf("writing fake getent: %v", err)
+				}
+			}
+			t.Setenv("PATH", binDir)
+
+			found, err := getentUserExists("kubelet")
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("%s: expected error, got nil", tc.name)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("%s: unexpected error: %v", tc.name, err)
+			}
+			if found != tc.wantFound {
+				t.Errorf("%s: got found=%v, want %v", tc.name, found, tc.wantFound)
+			}
+		})
+	}
+}
+
 func TestResolveRecursiveReadOnly(t *testing.T) {
 	testCases := []struct {
 		m                  v1.VolumeMount
